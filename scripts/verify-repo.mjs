@@ -8,6 +8,7 @@ const required = [
   'netlify/functions/parser-ticket.js',
   'netlify/functions/leads.js',
   'netlify/functions/events.js',
+  'netlify/functions/address-suggest.js',
   'parser-service/app.py',
   'parser-service/requirements.txt',
   'parser-service/Dockerfile',
@@ -18,8 +19,22 @@ for (const file of required) {
 }
 
 const html = fs.readFileSync('public/index.html', 'utf8');
-for (const marker of ['/api/config', '/api/parser/ticket', '/api/leads', '/api/events']) {
-  if (!html.includes(marker)) throw new Error(`Frontend missing endpoint marker: ${marker}`);
+for (const marker of [
+  '/api/config', '/api/parser/ticket', '/api/leads', '/api/events', '/api/address/suggest',
+  'PENSAVI → EMERGE', 'IL PUNTO CIECO', 'DOPO IL PRIMO DATO', 'ULTIMO DATO SUL TUO CASO',
+  'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO'
+]) {
+  if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
+}
+
+const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]).filter(Boolean);
+if (!inlineScripts.length) throw new Error('No inline application script found');
+for (const [index, source] of inlineScripts.entries()) {
+  try {
+    new Function(source);
+  } catch (error) {
+    throw new Error(`Inline JavaScript syntax error in script ${index + 1}: ${error.message}`);
+  }
 }
 
 function walk(dir) {
@@ -40,4 +55,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS');
+console.log('Repository verification: PASS · full funnel markers and inline JS syntax verified');
