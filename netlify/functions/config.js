@@ -1,18 +1,16 @@
-import { env, envBool, envNum } from "./_shared/env.js";
+import { env, envNum } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 
 export default async () => {
   const crmMode = env("ECON_CRM_MODE", "blobs").toLowerCase();
-  const parserUrl = env("ECON_PARSER_API_URL");
-  const geocoderProvider = env("ECON_GEOCODER_PROVIDER", "nominatim-test").toLowerCase();
+  const geocoderProvider = env("ECON_GEOCODER_PROVIDER", "disabled").toLowerCase();
   return json({
-    version: "1.6",
+    version: "1.7",
     privacy_url: env("ECON_PRIVACY_URL") || null,
-    privacy_version: env("ECON_PRIVACY_VERSION", "v1.6-prelive"),
+    privacy_version: env("ECON_PRIVACY_VERSION", "v1.7-prelive"),
     bill_file_stored: false,
-    parser_api_url: parserUrl || null,
-    parser_ticket_required: true,
-    local_parser_fallback: envBool("ECON_LOCAL_PARSER_FALLBACK", false),
+    bill_parser_mode: "browser-local",
+    bill_parser_external_service: false,
     crm_connected: crmMode === "webhook" && Boolean(env("ECON_CRM_WEBHOOK_URL")),
     crm_mode: crmMode,
     address_autocomplete: geocoderProvider !== "disabled",
