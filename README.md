@@ -1,20 +1,21 @@
-# ECON — Test Fotovoltaico V1.7
+# ECON — Test Fotovoltaico V1.8
 
 Repository operativo per il funnel retail ECON “Quanto sei pronto per il fotovoltaico?”.
 
-## Architettura V1.7
+## Architettura V1.8
 
-La V1.7 richiede soltanto **GitHub + Netlify**.
+La V1.8 richiede soltanto **GitHub + Netlify**.
 
 - `public/index.html`: funnel mobile-first completo.
 - `public/assets/bill-parser.js`: estrazione dati bolletta eseguita localmente nel browser.
 - PDF.js: lettura del layer testuale dei PDF.
 - Tesseract.js + modello italiano: OCR locale per PDF scansionati e immagini.
 - `scripts/vendor-browser-libs.mjs`: copia PDF.js, worker, core WASM e traineddata dentro `public/vendor` durante la build Netlify.
-- `netlify/functions`: lead, analytics, configurazione e funzioni leggere.
-- Netlify Blobs: archivio pre-live di lead/eventi quando `ECON_CRM_MODE=blobs`.
+- `netlify/functions/leads.js`: endpoint di acquisizione lead.
+- `netlify/functions/admin-leads.js`: lettura protetta e export dei lead archiviati.
+- Netlify Blobs: archivio persistente pre-live di lead ed eventi quando `ECON_CRM_MODE=blobs`.
 
-**La bolletta non viene inviata a un servizio OCR esterno e non viene salvata dal parser.** Il file rimane nel dispositivo dell’utente durante la lettura. Il browser restituisce un JSON `econ.bill.v1`; l’utente conferma i dati prima della mini-diagnosi.
+**La bolletta non viene inviata a un servizio OCR esterno e non viene salvata dal parser.** Il file rimane nel dispositivo dell’utente durante la lettura. Nel lead vengono salvati soltanto i dati strutturati necessari al risultato e alla qualificazione.
 
 ## Deploy Netlify
 
@@ -31,9 +32,11 @@ Il repository è collegato al progetto Netlify `test-fotovoltaico`.
 La build esegue:
 
 1. vendor delle dipendenze browser locali;
-2. patch V1.7 del frontend;
-3. controllo sintassi Functions;
-4. quality gate del repository e del parser browser.
+2. patch V1.8 del frontend;
+3. regression test del parser bollette;
+4. test del contratto lead/storage;
+5. controllo sintassi Functions;
+6. quality gate del repository.
 
 ## Lettura bolletta
 
@@ -43,19 +46,63 @@ Percorso:
 2. Se il testo è insufficiente o manca il consumo di riferimento → OCR locale.
 3. PDF scansionato → fino a 5 pagine vengono renderizzate nel browser e lette da Tesseract.js.
 4. Foto JPG/PNG/WebP → OCR locale.
-5. Il parser prova a rilevare consumo, spesa, periodo, importo fattura, POD, potenza, fasce e indirizzo.
+5. Il parser prova a rilevare consumo, spesa, periodo, importo fattura, potenza, fasce e indirizzo.
 6. I campi derivati sono marcati `CALCOLATO DA BOLLETTA`; i valori trovati direttamente sono `DATO DA BOLLETTA`.
 7. Prima della diagnosi l’utente conferma o corregge i dati principali.
 
 Limite prudenziale client-side: 20 MB per file. L’OCR è più lento del parsing testuale e dipende dalle prestazioni del dispositivo.
 
-## CRM
+## Acquisizione lead
 
-Pre-live:
+Modalità pre-live:
 
 `ECON_CRM_MODE=blobs`
 
-Production, se viene collegato un CRM:
+Il comando finale del funnel invia `econ.lead.v1` a:
+
+`POST /api/leads`
+
+La Function valida lato server:
+
+- sessione;
+- presa visione privacy;
+- nome e cognome;
+- email;
+- cellulare;
+- indirizzo dell’immobile.
+
+Il record viene salvato nello store Netlify Blobs:
+
+`econ-fv-leads-prelive`
+
+con chiave deterministica `lead/<lead_id>`. Un nuovo invio della stessa sessione aggiorna lo stesso lead invece di crearne uno duplicato.
+
+Il record persistente usa lo schema `econ.lead.record.v1` e aggiunge timestamp server-side `created_at` e `updated_at`. Il payload include contatto, indirizzo, score, risposte del test e riepilogo strutturato dei dati utili letti/confermati dalla bolletta. Il file della bolletta non viene archiviato.
+
+## Verifica e consultazione lead
+
+Impostare su Netlify una variabile `ECON_ADMIN_TOKEN` casuale di almeno 32 caratteri.
+
+Endpoint protetto:
+
+`GET /api/admin/leads`
+
+Autenticazione:
+
+`Authorization: Bearer <ECON_ADMIN_TOKEN>`
+
+Parametri disponibili:
+
+- `limit=50` massimo 250;
+- `offset=0`;
+- `detail=full` per vedere il record completo;
+- `format=csv` per esportare un CSV operativo.
+
+Senza token corretto l'endpoint non restituisce i lead.
+
+## CRM
+
+Quando verrà collegato un CRM:
 
 `ECON_CRM_MODE=webhook`
 
@@ -80,8 +127,10 @@ GitHub Actions verifica automaticamente:
 
 - generazione degli asset PDF.js/Tesseract locali;
 - presenza del modello OCR italiano;
+- regressioni del parser bollette;
+- contratto di validazione e serializzazione lead;
 - sintassi delle Netlify Functions;
-- sintassi del parser browser;
+- presenza del salvataggio Netlify Blobs e dell'admin inspector;
 - assenza del vecchio endpoint `/api/parser/ticket` nel frontend;
 - presenza delle schermate chiave del funnel;
 - assenza di POD reali hard-coded.
@@ -101,8 +150,9 @@ npx netlify dev
 3. Test OCR con E.ON/scansione.
 4. Conferma dati letti prima della diagnosi.
 5. Mini-diagnosi coerente con i dati confermati.
-6. Lead salvato correttamente.
-7. Opt-in commerciale separato.
-8. Informativa privacy approvata e versionata.
+6. Lead reale salvato correttamente in Netlify Blobs.
+7. Lead visibile tramite `/api/admin/leads` con token amministratore.
+8. Opt-in commerciale separato.
+9. Informativa privacy approvata e versionata.
 
 I risultati economici restano simulazioni preliminari e non vengono presentati come dati misurati o garantiti.

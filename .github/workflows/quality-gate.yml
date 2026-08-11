@@ -1,4 +1,4 @@
-name: ECON V1.7 quality gate
+name: ECON V1.8 quality gate
 
 on:
   push:
