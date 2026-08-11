@@ -3,6 +3,16 @@ import fs from 'node:fs';
 const file = 'public/index.html';
 let html = fs.readFileSync(file, 'utf8');
 
+const alreadyPatched =
+  html.includes("import('/assets/bill-parser.js')") &&
+  html.includes('nessun servizio OCR esterno') &&
+  html.includes("power_kw:billVal('power_kw')") &&
+  html.includes('state.a.lead_id=j.lead_id');
+if (alreadyPatched) {
+  console.log('V1.8 frontend patch: PASS');
+  process.exit(0);
+}
+
 const oldUploadStart = 'async function uploadBill(file){';
 const oldUploadEnd = 'async function addressSearch(q){';
 const start = html.indexOf(oldUploadStart);
