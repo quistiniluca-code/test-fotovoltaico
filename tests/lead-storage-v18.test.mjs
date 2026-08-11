@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { __test as leadTest } from '../netlify/functions/leads.js';
 import { __test as adminTest } from '../netlify/functions/admin-leads.js';
+import { sameOriginRequest } from '../netlify/functions/_shared/http.js';
 
 const valid = {
   schema: 'econ.lead.v1',
@@ -64,4 +65,10 @@ assert.match(dummyDigest, /^[a-f0-9]{64}$/);
 assert.match(adminTest.ADMIN_TOKEN_SHA256_FALLBACK, /^[a-f0-9]{64}$/);
 assert.notEqual(dummyDigest, adminTest.ADMIN_TOKEN_SHA256_FALLBACK);
 
-console.log('Lead storage contract: PASS · privacy/version/payload/admin-auth guards');
+process.env.ECON_ALLOWED_ORIGINS = 'https://verifica.econ-apex.com';
+assert.equal(sameOriginRequest(new Request('https://test-fotovoltaico.netlify.app/api/leads', { headers: { origin: 'https://test-fotovoltaico.netlify.app' } })), true);
+assert.equal(sameOriginRequest(new Request('https://test-fotovoltaico.netlify.app/api/leads', { headers: { origin: 'https://verifica.econ-apex.com' } })), true);
+assert.equal(sameOriginRequest(new Request('https://test-fotovoltaico.netlify.app/api/leads', { headers: { origin: 'https://evil.example' } })), false);
+delete process.env.ECON_ALLOWED_ORIGINS;
+
+console.log('Lead storage contract: PASS · privacy/version/payload/admin-auth/origin guards');
