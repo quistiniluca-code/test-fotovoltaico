@@ -115,6 +115,13 @@ Configurare prima del go-live:
 - `ECON_PRIVACY_URL`
 - `ECON_PRIVACY_VERSION`
 
+Configurazione production verificata il 2026-08-11:
+
+- `ECON_CRM_MODE=blobs`;
+- `ECON_PRIVACY_URL=https://www.econ-apex.com/privacy`;
+- `ECON_PRIVACY_VERSION=2025-09-07`;
+- `ECON_ADMIN_TOKEN` configurato come secret Netlify, valore non documentato nel repository.
+
 La richiesta commerciale FV resta separata dalla presa visione privacy e non è preselezionata.
 
 ## Indirizzo
