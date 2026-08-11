@@ -4,10 +4,15 @@ import { json } from "./_shared/http.js";
 export default async () => {
   const crmMode = env("ECON_CRM_MODE", "blobs").toLowerCase();
   const geocoderProvider = env("ECON_GEOCODER_PROVIDER", "disabled").toLowerCase();
+  const privacyUrl = env("ECON_PRIVACY_URL");
+  const privacyVersion = env("ECON_PRIVACY_VERSION");
+  const privacyReady = Boolean(privacyUrl && /^https:\/\//i.test(privacyUrl) && privacyVersion);
+
   return json({
-    version: "1.8",
-    privacy_url: env("ECON_PRIVACY_URL") || null,
-    privacy_version: env("ECON_PRIVACY_VERSION", "v1.8-prelive"),
+    version: "1.8-prelaunch",
+    privacy_url: privacyReady ? privacyUrl : null,
+    privacy_version: privacyReady ? privacyVersion : null,
+    privacy_ready: privacyReady,
     bill_file_stored: false,
     bill_parser_mode: "browser-local",
     bill_parser_external_service: false,

@@ -5,16 +5,18 @@ import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
+const MAX_LEAD_JSON_CHARS = 50000;
 
 function requiredString(value, min = 1, max = 240) {
   const s = String(value ?? "").trim();
   return s.length >= min && s.length <= max ? s : "";
 }
 
-function validateLead(body) {
+function validateLead(body, expectedPrivacyVersion = "") {
   if (body?.schema !== "econ.lead.v1") return "invalid_schema";
   if (!safeSessionId(body?.session_id)) return "invalid_session_id";
   if (body?.privacy?.acknowledged !== true) return "privacy_ack_required";
+  if (expectedPrivacyVersion && body?.privacy?.version !== expectedPrivacyVersion) return "privacy_version_mismatch";
   if (!requiredString(body?.contact?.first_name, 1, 80)) return "first_name_required";
   if (!requiredString(body?.contact?.last_name, 1, 80)) return "last_name_required";
   const email = requiredString(body?.contact?.email, 5, 180);
@@ -97,9 +99,18 @@ async function persistLead(payload, leadId) {
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
+
+  const privacyUrl = env("ECON_PRIVACY_URL");
+  const privacyVersion = env("ECON_PRIVACY_VERSION");
+  if (!privacyUrl || !/^https:\/\//i.test(privacyUrl) || !privacyVersion) {
+    return json({ detail: "privacy_not_configured" }, 503);
+  }
+
   try {
     const body = await readJson(request);
-    const problem = validateLead(body);
+    if (JSON.stringify(body).length > MAX_LEAD_JSON_CHARS) return json({ detail: "lead_payload_too_large" }, 413);
+
+    const problem = validateLead(body, privacyVersion);
     if (problem) return json({ detail: problem }, 400);
     const sessionId = safeSessionId(body.session_id);
     const leadId = leadIdForSession(sessionId);
@@ -132,4 +143,4 @@ export const config = {
   rateLimit: { windowLimit: 8, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
 
-export const __test = { validateLead, leadIdForSession, LEAD_STORE };
+export const __test = { validateLead, leadIdForSession, LEAD_STORE, MAX_LEAD_JSON_CHARS };
