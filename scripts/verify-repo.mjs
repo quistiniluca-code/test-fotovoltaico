@@ -33,7 +33,9 @@ for (const marker of [
   "import('/assets/bill-parser.js')", 'browser-local', 'nessun servizio OCR esterno',
   "power_kw:billVal('power_kw')", 'state.a.lead_id=j.lead_id',
   'PENSAVI → EMERGE', 'IL PUNTO CIECO', 'DOPO IL PRIMO DATO', 'ULTIMO DATO SUL TUO CASO',
-  'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO'
+  'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO',
+  'id="econ-v2"', 'function enhanceV2(', 'prefers-reduced-motion',
+  'I dati inseriti sono ancora qui: puoi riprovare.'
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -78,4 +80,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.8 browser-local bill parser + persistent lead storage');
+console.log('Repository verification: PASS · V2 conversion candidate on V1.8 browser-local architecture');

@@ -1,8 +1,17 @@
-# ECON — Test Fotovoltaico V1.8
+# ECON — Test Fotovoltaico V2.0 Conversion Candidate
 
-Repository operativo per il funnel retail ECON “Quanto sei pronto per il fotovoltaico?”.
+Repository operativo per il funnel retail ECON “Quanto sei pronto per il fotovoltaico?”. La V2.0 migliora gerarchia, ritmo, accessibilità e conversione mobile mantenendo intatta l’architettura funzionale V1.8.
 
-## Architettura V1.8
+## Esperienza V2.0
+
+- Hero mobile-first focalizzata su titolo, valore, CTA e assenza di richiesta automatica di preventivo.
+- Risposte con tap target più ampi, selezione più leggibile e avanzamento persistente.
+- Stati ad alta salienza per lettura bolletta, confronto previsione/dato, Punteggio FV, punto cieco e sorpresa.
+- Parsing locale presentato come sequenza comprensibile: preparazione, lettura, eventuale OCR e dati trovati.
+- Form con label, focus visibili, safe-area mobile e supporto `prefers-reduced-motion`.
+- Lead gate con retry senza perdita dei dati inseriti e avanzamento solo dopo risposta positiva di `/api/leads`.
+
+## Architettura V1.8 invariata
 
 La V1.8 richiede soltanto **GitHub + Netlify**.
 
