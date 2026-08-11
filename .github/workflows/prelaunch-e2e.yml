@@ -1,0 +1,58 @@
+name: ECON production prelaunch smoke
+
+on:
+  push:
+    branches: [prelaunch-e2e-smoke]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check production page
+        run: |
+          set -euo pipefail
+          curl -fsS https://test-fotovoltaico.netlify.app/ -o page.html
+          grep -F "Quanto sei pronto per il" page.html
+          grep -F "Verifica la tua energia" page.html
+
+      - name: Check health
+        run: |
+          set -euo pipefail
+          curl -fsS https://test-fotovoltaico.netlify.app/api/health -o health.json
+          cat health.json
+
+      - name: Check runtime config
+        run: |
+          set -euo pipefail
+          curl -fsS https://test-fotovoltaico.netlify.app/api/config -o config.json
+          node -e "const c=require('./config.json'); if(c.privacy_ready!==true) throw new Error('privacy_not_ready'); if(c.privacy_version!=='2025-09-07') throw new Error('privacy_version'); if(c.lead_storage!=='netlify_blobs') throw new Error('lead_storage'); if(c.bill_parser_mode!=='browser-local') throw new Error('bill_parser_mode'); console.log('config PASS')"
+
+      - name: Check admin endpoint is protected and configured
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o admin.json -w "%{http_code}" https://test-fotovoltaico.netlify.app/api/admin/leads)
+          cat admin.json
+          test "$code" = "401"
+
+      - name: Submit synthetic lead and verify persistence acknowledgement
+        run: |
+          set -euo pipefail
+          cat > lead.json <<'JSON'
+          {
+            "schema":"econ.lead.v1",
+            "session_id":"qa-prelaunch-20260811-fixed-session",
+            "contact":{
+              "first_name":"QA",
+              "last_name":"PRELAUNCH",
+              "mobile":"+390000000000",
+              "email":"qa.prelaunch@example.test",
+              "commercial_fv_request":false
+            },
+            "property":{"address":"TEST PRELAUNCH - Via Fittizia 1, 24100 Bergamo"},
+            "privacy":{"acknowledged":true,"version":"2025-09-07"},
+            "test":{"score":0,"answers":{}},
+            "bill_summary":{"supplier":null,"annual_kwh":null,"annual_spend":null}
+          }
+          JSON
+          curl -fsS -H 'content-type: application/json' --data-binary @lead.json https://test-fotovoltaico.netlify.app/api/leads -o lead-response.json
+          node -e "const r=require('./lead-response.json'); if(r.ok!==true||r.persisted!==true||r.adapter!=='netlify_blobs'||!r.lead_id) throw new Error('lead_not_persisted'); console.log('lead persistence PASS', r.lead_id)"
