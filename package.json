@@ -7,11 +7,12 @@
     "dev": "netlify dev",
     "vendor": "node scripts/vendor-browser-libs.mjs",
     "patch:v18": "node scripts/patch-index-v18.mjs",
+    "test:stream-compat": "node tests/readable-stream-compat.test.mjs",
     "test:bill-parser": "node tests/bill-parser-v17.test.mjs",
     "test:lead-storage": "node tests/lead-storage-v18.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run test:bill-parser && npm run test:lead-storage && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {

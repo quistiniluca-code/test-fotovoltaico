@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { READABLE_STREAM_COMPAT_MARKER, READABLE_STREAM_COMPAT_SOURCE } from './readable-stream-compat.mjs';
 
 const root = process.cwd();
 const out = path.join(root, 'public', 'vendor');
@@ -11,6 +12,11 @@ const copy = (src, dest) => {
   const a = path.join(root, src), b = path.join(root, dest);
   fs.mkdirSync(path.dirname(b), { recursive: true });
   fs.copyFileSync(a, b);
+};
+const prepend = (dest, source, marker) => {
+  const file = path.join(root, dest);
+  const current = fs.readFileSync(file, 'utf8');
+  if (!current.includes(marker)) fs.writeFileSync(file, source + current);
 };
 const findFile = (dir, predicate) => {
   const abs = path.join(root, dir);
@@ -32,6 +38,17 @@ const pdfBase = exists('node_modules/pdfjs-dist/legacy/build/pdf.mjs')
   : 'node_modules/pdfjs-dist/build';
 copy(`${pdfBase}/pdf.mjs`, 'public/vendor/pdfjs/pdf.mjs');
 copy(`${pdfBase}/pdf.worker.mjs`, 'public/vendor/pdfjs/pdf.worker.mjs');
+
+// Safari/WebKit versions before native ReadableStream async iteration can fail
+// while evaluating current PDF.js builds. Keep PDF.js current for security and
+// provide only the missing stream iteration primitives before its code runs.
+prepend('public/vendor/pdfjs/pdf.mjs', READABLE_STREAM_COMPAT_SOURCE, READABLE_STREAM_COMPAT_MARKER);
+prepend('public/vendor/pdfjs/pdf.worker.mjs', READABLE_STREAM_COMPAT_SOURCE, READABLE_STREAM_COMPAT_MARKER);
+for (const file of ['public/vendor/pdfjs/pdf.mjs', 'public/vendor/pdfjs/pdf.worker.mjs']) {
+  if (!fs.readFileSync(path.join(root, file), 'utf8').includes(READABLE_STREAM_COMPAT_MARKER)) {
+    throw new Error(`ReadableStream compatibility shim missing from ${file}`);
+  }
+}
 
 const tessEsm = findFile('node_modules/tesseract.js/dist', (_, n) => n === 'tesseract.esm.min.js');
 const tessWorker = findFile('node_modules/tesseract.js/dist', (_, n) => n === 'worker.min.js');
@@ -64,4 +81,4 @@ while (stack.length) {
 }
 if (!copiedCore) throw new Error('Tesseract core assets not found');
 
-console.log(`Vendored PDF.js + Tesseract assets (${copiedCore} core files).`);
+console.log(`Vendored PDF.js + Tesseract assets (${copiedCore} core files) · Safari stream compat enabled.`);
