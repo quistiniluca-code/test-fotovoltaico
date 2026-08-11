@@ -82,8 +82,8 @@ function extract(pages, parserMode = 'text') {
   if (h) fields.annual_kwh = field(num(h.match[1]), DIRECT, h.page, parserMode === 'ocr' ? 0.82 : 0.96);
 
   h = findOnPages(pages, [
-    /(?:totale )?spesa annua(?: sostenuta)?[^:]{0,110}:\s*([\d.]+,\d{2})\s*€/i,
-    /SPESA ANNUA[^0-9]{0,90}([\d.]+,\d{2})\s*€/i,
+    /(?:totale\s+)?spesa annua(?: sostenuta)?[^€]{0,260}?([\d.]+,\d{2})\s*€/i,
+    /SPESA ANNUA[^€]{0,260}?([\d.]+[,.]\d{2})\s*€/i,
   ]);
   if (h) fields.annual_spend = field(num(h.match[1]), DIRECT, h.page, parserMode === 'ocr' ? 0.78 : 0.94);
 
