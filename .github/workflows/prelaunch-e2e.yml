@@ -3,6 +3,8 @@ name: ECON production prelaunch smoke
 on:
   push:
     branches: [prelaunch-e2e-smoke]
+  pull_request:
+    branches: [main]
 
 jobs:
   smoke:
