@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "netlify dev",
     "vendor": "node scripts/vendor-browser-libs.mjs",
+    "patch:v17": "node scripts/patch-index-v17.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v17 && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
