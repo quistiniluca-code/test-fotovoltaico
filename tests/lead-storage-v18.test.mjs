@@ -19,9 +19,12 @@ const valid = {
 };
 
 assert.equal(leadTest.validateLead(valid), null);
+assert.equal(leadTest.validateLead(valid, 'v1.8-prelive'), null);
+assert.equal(leadTest.validateLead(valid, 'v1.9'), 'privacy_version_mismatch');
 assert.equal(leadTest.validateLead({ ...valid, privacy: { acknowledged: false } }), 'privacy_ack_required');
 assert.equal(leadTest.validateLead({ ...valid, contact: { ...valid.contact, mobile: '123' } }), 'invalid_mobile');
 assert.equal(leadTest.validateLead({ ...valid, property: { address: '' } }), 'property_address_required');
+assert.equal(leadTest.MAX_LEAD_JSON_CHARS, 50000);
 
 const id1 = leadTest.leadIdForSession(valid.session_id);
 const id2 = leadTest.leadIdForSession(valid.session_id);
@@ -57,4 +60,4 @@ assert.match(csv, /4200/);
 assert.equal(adminTest.secureEqual('abcdefghijklmnopqrstuvwxyz123456', 'abcdefghijklmnopqrstuvwxyz123456'), true);
 assert.equal(adminTest.secureEqual('abcdefghijklmnopqrstuvwxyz123456', 'different-token-1234567890123456'), false);
 
-console.log('Lead storage contract: PASS');
+console.log('Lead storage contract: PASS · privacy/version/payload guards');
