@@ -1,67 +1,70 @@
-name: ECON production prelaunch smoke
+name: ECON canonical-domain smoke
 
 on:
   push:
     branches: [prelaunch-e2e-smoke]
-  pull_request:
-    branches: [main]
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Check production page
+      - name: Check canonical URL without redirect
         run: |
           set -euo pipefail
-          curl -fsS https://test-fotovoltaico.netlify.app/ -o page.html
+          result=$(curl -sS -o page.html -w "%{http_code} %{url_effective}" https://verifica.econ-apex.com/)
+          echo "$result"
+          test "$result" = "200 https://verifica.econ-apex.com/"
           grep -F "Quanto sei pronto per il" page.html
           grep -F "Verifica la tua energia" page.html
 
-      - name: Check health
+      - name: Check health through canonical domain
         run: |
           set -euo pipefail
-          curl -fsS https://test-fotovoltaico.netlify.app/api/health -o health.json
-          cat health.json
+          curl -fsS https://verifica.econ-apex.com/api/health -o health.json
+          node -e "const h=require('./health.json'); if(h.ok!==true||h.version!=='1.8-launch'||h.bill_parser_mode!=='browser-local'||h.lead_storage!=='netlify_blobs'||h.privacy_ready!==true||h.admin_auth_configured!==true) throw new Error('health_mismatch'); console.log('health PASS')"
 
-      - name: Check runtime config
+      - name: Check runtime config through canonical domain
         run: |
           set -euo pipefail
-          curl -fsS https://test-fotovoltaico.netlify.app/api/config -o config.json
+          curl -fsS https://verifica.econ-apex.com/api/config -o config.json
           node -e "const c=require('./config.json'); if(c.privacy_ready!==true) throw new Error('privacy_not_ready'); if(c.privacy_version!=='2025-09-07') throw new Error('privacy_version'); if(c.lead_storage!=='netlify_blobs') throw new Error('lead_storage'); if(c.bill_parser_mode!=='browser-local') throw new Error('bill_parser_mode'); console.log('config PASS')"
 
-      - name: Submit synthetic lead and verify persistence acknowledgement
+      - name: Submit synthetic lead from canonical origin
         run: |
           set -euo pipefail
           cat > lead.json <<'JSON'
           {
             "schema":"econ.lead.v1",
-            "session_id":"qa-prelaunch-20260811-fixed-session",
+            "session_id":"qa-canonical-verifica-20260811-fixed",
             "contact":{
               "first_name":"QA",
-              "last_name":"PRELAUNCH",
-              "mobile":"+390000000000",
-              "email":"qa.prelaunch@example.test",
+              "last_name":"CANONICAL",
+              "mobile":"+390000000001",
+              "email":"qa.canonical@example.test",
               "commercial_fv_request":false
             },
-            "property":{"address":"TEST PRELAUNCH - Via Fittizia 1, 24100 Bergamo"},
+            "property":{"address":"TEST CANONICAL - Via Fittizia 2, 24100 Bergamo"},
             "privacy":{"acknowledged":true,"version":"2025-09-07"},
             "test":{"score":0,"answers":{}},
             "bill_summary":{"supplier":null,"annual_kwh":null,"annual_spend":null}
           }
           JSON
-          curl -fsS -H 'content-type: application/json' --data-binary @lead.json https://test-fotovoltaico.netlify.app/api/leads -o lead-response.json
+          curl -fsS -H 'Origin: https://verifica.econ-apex.com' -H 'content-type: application/json' --data-binary @lead.json https://verifica.econ-apex.com/api/leads -o lead-response.json
           node -e "const r=require('./lead-response.json'); if(r.ok!==true||r.persisted!==true||r.adapter!=='netlify_blobs'||!r.lead_id) throw new Error('lead_not_persisted'); console.log('lead persistence PASS', r.lead_id)"
 
-      - name: Report admin endpoint state
+      - name: Submit analytics event from canonical origin
         run: |
           set -euo pipefail
-          code=$(curl -sS -o admin.json -w "%{http_code}" https://test-fotovoltaico.netlify.app/api/admin/leads)
+          cat > event.json <<'JSON'
+          {"session_id":"qa-canonical-verifica-20260811-fixed","event":"screen_view","step":0,"detail":{"qa":"canonical-domain"}}
+          JSON
+          code=$(curl -sS -o event-response.json -w "%{http_code}" -H 'Origin: https://verifica.econ-apex.com' -H 'content-type: application/json' --data-binary @event.json https://verifica.econ-apex.com/api/events)
+          cat event-response.json
+          test "$code" = "202"
+
+      - name: Check admin endpoint remains protected
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o admin.json -w "%{http_code}" https://verifica.econ-apex.com/api/admin/leads)
           cat admin.json
-          if [ "$code" = "401" ]; then
-            echo "admin endpoint configured and protected"
-          elif [ "$code" = "503" ]; then
-            echo "admin endpoint protected but ECON_ADMIN_TOKEN is not available to runtime"
-          else
-            echo "unexpected admin status: $code"
-            exit 1
-          fi
+          test "$code" = "401"
