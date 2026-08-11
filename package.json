@@ -1,18 +1,22 @@
 {
-  "name": "econ-fv-test-v1-6",
-  "version": "1.6.0",
+  "name": "econ-fv-test-v1-7",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
+    "vendor": "node scripts/vendor-browser-libs.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run check && npm run verify",
+    "build": "npm run vendor && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
     "@netlify/blobs": "10.7.9",
-    "@netlify/functions": "5.3.0"
+    "@netlify/functions": "5.3.0",
+    "@tesseract.js-data/ita": "1.0.0",
+    "pdfjs-dist": "6.1.200",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "netlify-cli": "26.1.0"
