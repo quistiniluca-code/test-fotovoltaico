@@ -32,16 +32,28 @@ for (const marker of [
   '/api/config', '/api/leads', '/api/events',
   "import('/assets/bill-parser.js')", 'browser-local', 'nessun servizio OCR esterno',
   "power_kw:billVal('power_kw')", 'state.a.lead_id=j.lead_id',
+  'Aumentare l’indipendenza dalla rete', 'const attribution=(()=>', 'Informativa privacy non configurata',
   'PENSAVI → EMERGE', 'IL PUNTO CIECO', 'DOPO IL PRIMO DATO', 'ULTIMO DATO SUL TUO CASO',
   'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO'
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
 if (html.includes('/api/parser/ticket')) throw new Error('Legacy external-parser ticket still referenced by frontend');
+if (html.includes("const belief=state.a.initial_system_belief;if([1,2,4].includes(belief))")) {
+  throw new Error('Economic simulation still depends on imagined battery/system choice');
+}
+if (html.includes("supply_address:billVal('supply_address')")) {
+  throw new Error('Redundant bill supply address is still persisted in bill_summary');
+}
 
 const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
-for (const marker of ['econ-fv-leads-prelive', 'econ.lead.record.v1', 'persisted: true', 'server: {']) {
+for (const marker of ['econ-fv-leads-prelive', 'econ.lead.record.v1', 'persisted: true', 'server: {', 'privacy_not_configured', 'privacy_version_mismatch', 'MAX_LEAD_JSON_CHARS']) {
   if (!leadFn.includes(marker)) throw new Error(`Lead storage function missing marker: ${marker}`);
+}
+
+const configFn = fs.readFileSync('netlify/functions/config.js', 'utf8');
+for (const marker of ['privacy_ready', 'ECON_PRIVACY_URL', 'ECON_PRIVACY_VERSION']) {
+  if (!configFn.includes(marker)) throw new Error(`Runtime config missing privacy gate marker: ${marker}`);
 }
 
 const adminFn = fs.readFileSync('netlify/functions/admin-leads.js', 'utf8');
@@ -78,4 +90,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.8 browser-local bill parser + persistent lead storage');
+console.log('Repository verification: PASS · V1.8 prelaunch hardening');
