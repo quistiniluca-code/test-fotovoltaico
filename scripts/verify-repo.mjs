@@ -13,7 +13,9 @@ const required = [
   'netlify.toml',
   'netlify/functions/config.js',
   'netlify/functions/leads.js',
+  'netlify/functions/admin-leads.js',
   'netlify/functions/events.js',
+  'tests/lead-storage-v18.test.mjs',
 ];
 
 for (const file of required) {
@@ -29,12 +31,23 @@ const html = fs.readFileSync('public/index.html', 'utf8');
 for (const marker of [
   '/api/config', '/api/leads', '/api/events',
   "import('/assets/bill-parser.js')", 'browser-local', 'nessun servizio OCR esterno',
+  "power_kw:billVal('power_kw')", 'state.a.lead_id=j.lead_id',
   'PENSAVI → EMERGE', 'IL PUNTO CIECO', 'DOPO IL PRIMO DATO', 'ULTIMO DATO SUL TUO CASO',
   'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO'
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
 if (html.includes('/api/parser/ticket')) throw new Error('Legacy external-parser ticket still referenced by frontend');
+
+const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
+for (const marker of ['econ-fv-leads-prelive', 'econ.lead.record.v1', 'persisted: true', 'server: {']) {
+  if (!leadFn.includes(marker)) throw new Error(`Lead storage function missing marker: ${marker}`);
+}
+
+const adminFn = fs.readFileSync('netlify/functions/admin-leads.js', 'utf8');
+for (const marker of ['ECON_ADMIN_TOKEN', '/api/admin/leads', 'format === "csv"', 'netlify_blobs']) {
+  if (!adminFn.includes(marker)) throw new Error(`Admin lead inspector missing marker: ${marker}`);
+}
 
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]).filter(Boolean);
 if (!inlineScripts.length) throw new Error('No inline application script found');
@@ -65,4 +78,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.7 browser-local PDF/OCR + full funnel');
+console.log('Repository verification: PASS · V1.8 browser-local bill parser + persistent lead storage');
