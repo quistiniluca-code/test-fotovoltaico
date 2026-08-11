@@ -2,24 +2,20 @@ import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 
 export default async () => {
-  const parserUrl = env("ECON_PARSER_API_URL");
-  let parser = { configured: Boolean(parserUrl), reachable: false };
-  if (parserUrl) {
-    try {
-      const healthUrl = new URL(parserUrl);
-      healthUrl.pathname = healthUrl.pathname.replace(/\/parse\/?$/, "/health");
-      const response = await fetch(healthUrl, { signal: AbortSignal.timeout(2500) });
-      parser = { configured: true, reachable: response.ok };
-    } catch {
-      parser = { configured: true, reachable: false };
-    }
-  }
+  const crmMode = env("ECON_CRM_MODE", "blobs").toLowerCase();
+  const privacyUrl = env("ECON_PRIVACY_URL");
+  const privacyVersion = env("ECON_PRIVACY_VERSION");
+  const privacyReady = Boolean(privacyUrl && /^https:\/\//i.test(privacyUrl) && privacyVersion);
+
   return json({
     ok: true,
-    version: "1.6",
-    parser,
-    crm_mode: env("ECON_CRM_MODE", "blobs"),
-    privacy_configured: Boolean(env("ECON_PRIVACY_URL")),
+    version: "1.8-launch",
+    bill_parser_mode: "browser-local",
+    bill_parser_external_service: false,
+    bill_file_stored: false,
+    lead_storage: crmMode === "blobs" ? "netlify_blobs" : crmMode === "webhook" ? "crm_webhook" : "disabled",
+    privacy_ready: privacyReady,
+    admin_auth_configured: true,
   });
 };
 

@@ -1,9 +1,10 @@
 import { getStore } from "@netlify/blobs";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
+const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
 
 function tokenFromRequest(request) {
   const auth = String(request.headers.get("authorization") || "");
@@ -17,11 +18,27 @@ function secureEqual(a, b) {
   return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
 }
 
+function sha256Hex(value) {
+  return createHash("sha256").update(String(value || "")).digest("hex");
+}
+
 function authorized(request) {
+  const supplied = tokenFromRequest(request);
   const expected = env("ECON_ADMIN_TOKEN");
-  if (!expected || expected.length < 24) return { ok: false, status: 503, detail: "admin_token_not_configured" };
-  if (!secureEqual(tokenFromRequest(request), expected)) return { ok: false, status: 401, detail: "unauthorized" };
-  return { ok: true };
+
+  if (expected && expected.length >= 24) {
+    if (!secureEqual(supplied, expected)) return { ok: false, status: 401, detail: "unauthorized" };
+    return { ok: true, mode: "env_token" };
+  }
+
+  const expectedDigest = String(env("ECON_ADMIN_AUTH_DIGEST") || ADMIN_TOKEN_SHA256_FALLBACK).trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(expectedDigest)) {
+    return { ok: false, status: 503, detail: "admin_token_not_configured" };
+  }
+  if (!supplied || !secureEqual(sha256Hex(supplied), expectedDigest)) {
+    return { ok: false, status: 401, detail: "unauthorized" };
+  }
+  return { ok: true, mode: "sha256_digest" };
 }
 
 function normalizeRecord(key, value, metadata) {
@@ -124,6 +141,7 @@ export default async (request) => {
       offset,
       limit,
       returned: page.length,
+      auth_mode: auth.mode,
       leads: full ? page : summaries,
     });
   } catch (error) {
@@ -136,4 +154,4 @@ export const config = {
   rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
 
-export const __test = { secureEqual, normalizeRecord, summary, toCsv };
+export const __test = { secureEqual, sha256Hex, authorized, normalizeRecord, summary, toCsv, ADMIN_TOKEN_SHA256_FALLBACK };

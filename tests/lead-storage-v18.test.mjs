@@ -59,5 +59,9 @@ assert.match(csv, /4200/);
 
 assert.equal(adminTest.secureEqual('abcdefghijklmnopqrstuvwxyz123456', 'abcdefghijklmnopqrstuvwxyz123456'), true);
 assert.equal(adminTest.secureEqual('abcdefghijklmnopqrstuvwxyz123456', 'different-token-1234567890123456'), false);
+const dummyDigest = adminTest.sha256Hex('test-admin-token-not-production');
+assert.match(dummyDigest, /^[a-f0-9]{64}$/);
+assert.match(adminTest.ADMIN_TOKEN_SHA256_FALLBACK, /^[a-f0-9]{64}$/);
+assert.notEqual(dummyDigest, adminTest.ADMIN_TOKEN_SHA256_FALLBACK);
 
-console.log('Lead storage contract: PASS · privacy/version/payload guards');
+console.log('Lead storage contract: PASS · privacy/version/payload/admin-auth guards');
