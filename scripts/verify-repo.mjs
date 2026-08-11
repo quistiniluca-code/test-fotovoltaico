@@ -12,6 +12,7 @@ const required = [
   'public/vendor/tessdata/ita.traineddata.gz',
   'netlify.toml',
   'netlify/functions/config.js',
+  'netlify/functions/health.js',
   'netlify/functions/leads.js',
   'netlify/functions/admin-leads.js',
   'netlify/functions/events.js',
@@ -56,8 +57,14 @@ for (const marker of ['privacy_ready', 'ECON_PRIVACY_URL', 'ECON_PRIVACY_VERSION
   if (!configFn.includes(marker)) throw new Error(`Runtime config missing privacy gate marker: ${marker}`);
 }
 
+const healthFn = fs.readFileSync('netlify/functions/health.js', 'utf8');
+for (const marker of ['1.8-launch', 'browser-local', 'privacy_ready', 'admin_auth_configured']) {
+  if (!healthFn.includes(marker)) throw new Error(`Health function missing launch marker: ${marker}`);
+}
+if (healthFn.includes('ECON_PARSER_API_URL')) throw new Error('Health endpoint still references legacy external parser');
+
 const adminFn = fs.readFileSync('netlify/functions/admin-leads.js', 'utf8');
-for (const marker of ['ECON_ADMIN_TOKEN', '/api/admin/leads', 'format === "csv"', 'netlify_blobs']) {
+for (const marker of ['ECON_ADMIN_TOKEN', 'ADMIN_TOKEN_SHA256_FALLBACK', 'ECON_ADMIN_AUTH_DIGEST', 'sha256Hex', '/api/admin/leads', 'format === "csv"', 'netlify_blobs']) {
   if (!adminFn.includes(marker)) throw new Error(`Admin lead inspector missing marker: ${marker}`);
 }
 
@@ -90,4 +97,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.8 prelaunch hardening');
+console.log('Repository verification: PASS · V1.8 launch hardening');
