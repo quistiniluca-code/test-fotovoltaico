@@ -81,15 +81,15 @@ Il record persistente usa lo schema `econ.lead.record.v1` e aggiunge timestamp s
 
 ## Verifica e consultazione lead
 
-Impostare su Netlify una variabile `ECON_ADMIN_TOKEN` casuale di almeno 32 caratteri.
-
 Endpoint protetto:
 
 `GET /api/admin/leads`
 
 Autenticazione:
 
-`Authorization: Bearer <ECON_ADMIN_TOKEN>`
+`Authorization: Bearer <token amministratore>`
+
+La Function usa in priorità `ECON_ADMIN_TOKEN` se disponibile. Se il secret runtime non è disponibile, usa un fallback sicuro basato sul digest SHA-256 del token: nel repository è presente soltanto l’hash, non il token in chiaro. Il digest può essere ruotato tramite `ECON_ADMIN_AUTH_DIGEST` oppure aggiornando il fallback nel codice.
 
 Parametri disponibili:
 
@@ -119,8 +119,7 @@ Configurazione production verificata il 2026-08-11:
 
 - `ECON_CRM_MODE=blobs`;
 - `ECON_PRIVACY_URL=https://www.econ-apex.com/privacy`;
-- `ECON_PRIVACY_VERSION=2025-09-07`;
-- `ECON_ADMIN_TOKEN` configurato come secret Netlify, valore non documentato nel repository.
+- `ECON_PRIVACY_VERSION=2025-09-07`.
 
 La richiesta commerciale FV resta separata dalla presa visione privacy e non è preselezionata.
 
