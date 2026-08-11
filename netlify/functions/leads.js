@@ -4,6 +4,8 @@ import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
 
+const LEAD_STORE = "econ-fv-leads-prelive";
+
 function requiredString(value, min = 1, max = 240) {
   const s = String(value ?? "").trim();
   return s.length >= min && s.length <= max ? s : "";
@@ -21,6 +23,10 @@ function validateLead(body) {
   if (digits.length < 8 || digits.length > 16) return "invalid_mobile";
   if (!requiredString(body?.property?.address, 5, 260)) return "property_address_required";
   return null;
+}
+
+function leadIdForSession(sessionId) {
+  return createHash("sha256").update(`econ-fv-v1:${sessionId}`).digest("hex").slice(0, 24);
 }
 
 async function sendWebhook(payload, leadId) {
@@ -50,6 +56,44 @@ async function sendWebhook(payload, leadId) {
   throw new Error(lastError);
 }
 
+async function persistLead(payload, leadId) {
+  const store = getStore(LEAD_STORE);
+  const key = `lead/${leadId}`;
+  const now = new Date().toISOString();
+
+  let previous = null;
+  try {
+    previous = await store.get(key, { type: "json" });
+  } catch {
+    previous = null;
+  }
+
+  const createdAt = previous?.server?.created_at || previous?.created_at || now;
+  const record = {
+    schema: "econ.lead.record.v1",
+    lead_id: leadId,
+    server: {
+      created_at: createdAt,
+      updated_at: now,
+      storage: "netlify_blobs",
+      store: LEAD_STORE,
+    },
+    lead: payload,
+  };
+
+  await store.setJSON(key, record, {
+    metadata: {
+      created_at: createdAt,
+      updated_at: now,
+      commercial_request: Boolean(payload?.contact?.commercial_fv_request),
+      score: Number(payload?.test?.score) || 0,
+      source: "econ-fv-test",
+    },
+  });
+
+  return { key, created_at: createdAt, updated_at: now };
+}
+
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
@@ -58,22 +102,25 @@ export default async (request) => {
     const problem = validateLead(body);
     if (problem) return json({ detail: problem }, 400);
     const sessionId = safeSessionId(body.session_id);
-    const leadId = createHash("sha256").update(`econ-fv-v1:${sessionId}`).digest("hex").slice(0, 24);
+    const leadId = leadIdForSession(sessionId);
     const mode = env("ECON_CRM_MODE", "blobs").toLowerCase();
+
     if (mode === "webhook") {
       await sendWebhook(body, leadId);
       return json({ ok: true, lead_id: leadId, adapter: "crm_webhook" }, 201);
     }
+
     if (mode === "blobs") {
-      const store = getStore("econ-fv-leads-prelive");
-      await store.setJSON(`lead/${leadId}`, body, {
-        metadata: {
-          created_at: new Date().toISOString(),
-          commercial_request: Boolean(body?.contact?.commercial_fv_request),
-        },
-      });
-      return json({ ok: true, lead_id: leadId, adapter: "netlify_blobs_prelive" }, 201);
+      const stored = await persistLead(body, leadId);
+      return json({
+        ok: true,
+        lead_id: leadId,
+        adapter: "netlify_blobs",
+        persisted: true,
+        stored_at: stored.updated_at,
+      }, 201);
     }
+
     return json({ detail: "crm_disabled" }, 503);
   } catch (error) {
     return json({ detail: error instanceof Error ? error.message : "lead_failed" }, 500);
@@ -84,3 +131,5 @@ export const config = {
   path: "/api/leads",
   rateLimit: { windowLimit: 8, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
+
+export const __test = { validateLead, leadIdForSession, LEAD_STORE };
