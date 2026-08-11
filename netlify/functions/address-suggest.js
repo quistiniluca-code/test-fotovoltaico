@@ -5,7 +5,7 @@ const clean = (value) => String(value ?? "").trim();
 
 export default async (request) => {
   if (request.method !== "GET") return json({ detail: "method_not_allowed" }, 405);
-  const provider = env("ECON_GEOCODER_PROVIDER", "nominatim-test").toLowerCase();
+  const provider = env("ECON_GEOCODER_PROVIDER", "disabled").toLowerCase();
   if (provider === "disabled") return json({ detail: "geocoder_disabled" }, 503);
   const url = new URL(request.url);
   const q = clean(url.searchParams.get("q"));
@@ -23,7 +23,7 @@ export default async (request) => {
     const response = await fetch(upstream, {
       headers: {
         accept: "application/json",
-        "user-agent": env("ECON_GEOCODER_USER_AGENT", "ECON-FV-Test/1.6 (econ-apex.com)"),
+        "user-agent": env("ECON_GEOCODER_USER_AGENT", "ECON-FV-Test/1.7 (econ-apex.com)"),
       },
       signal: AbortSignal.timeout(6500),
     });
