@@ -7,7 +7,7 @@ const htmlFile = path.join(root, 'public', 'index.html');
 const sourceDir = path.join(root, 'assets', 'hero');
 const outputDir = path.join(root, 'public', 'assets', 'hero');
 const outputFile = path.join(outputDir, 'econ-home-energy.png');
-// Lossless dimensions, palette-optimized PNG derived from the exact supplied visual.
+// Palette-optimized PNG derived from the supplied visual, preserving dimensions and composition.
 const expectedSha256 = '2e99c3fbc6ffca2f4cc818c920cb85154da8d1df59c9b39ee4877d70763c5c89';
 const marker = 'HERO PNG · supplied asset · v1';
 
@@ -17,9 +17,14 @@ const chunks = fs.readdirSync(sourceDir)
 
 if (!chunks.length) throw new Error('Supplied hero PNG chunks are missing');
 
-const encoded = chunks
-  .map((name) => fs.readFileSync(path.join(sourceDir, name), 'utf8').trim())
-  .join('');
+const parts = chunks.map((name) => ({
+  name,
+  value: fs.readFileSync(path.join(sourceDir, name), 'utf8').trim(),
+}));
+console.log(`Hero PNG chunks: ${parts.map(({ name, value }) => `${name}:${value.length}`).join(', ')}`);
+
+const encoded = parts.map(({ value }) => value).join('');
+console.log(`Hero PNG base64 length: ${encoded.length}`);
 const image = Buffer.from(encoded, 'base64');
 const digest = createHash('sha256').update(image).digest('hex');
 
