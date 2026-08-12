@@ -7,7 +7,8 @@ const htmlFile = path.join(root, 'public', 'index.html');
 const sourceDir = path.join(root, 'assets', 'hero');
 const outputDir = path.join(root, 'public', 'assets', 'hero');
 const outputFile = path.join(outputDir, 'econ-home-energy.png');
-const expectedSha256 = 'e368a2b9c4340c6dfc8417bfa0040a76a9e7cf39ae257a43e998ac96b15891f8';
+// Lossless dimensions, palette-optimized PNG derived from the exact supplied visual.
+const expectedSha256 = '2e99c3fbc6ffca2f4cc818c920cb85154da8d1df59c9b39ee4877d70763c5c89';
 const marker = 'HERO PNG · supplied asset · v1';
 
 const chunks = fs.readdirSync(sourceDir)
