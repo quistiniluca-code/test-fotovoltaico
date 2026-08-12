@@ -91,10 +91,33 @@ function economicSignal(e){
   if(e.payback<=10)return{label:'POTENZIALE INTERESSANTE',copy:'Il primo scenario mostra un equilibrio economico che merita una verifica più precisa.'};
   return{label:'DA OTTIMIZZARE',copy:'Il primo scenario richiede una configurazione più precisa per esprimere meglio il potenziale del caso.'};
 }
+function profileResultBody(score,band){
+  const usage=single[6].o[state.a.usage_timing??3]?.[0]||'Da definire',goal=single[9].o[state.a.primary_goal??5]?.[0]||'Da definire',kwh=+billVal('annual_kwh')||0;
+  return '<div class="result-score-wrap"><div class="result-score">'+score+'<small>/100</small></div><div class="result-band">'+esc(band.label)+'</div></div>'+
+    '<div class="profile-compact"><div class="row"><span>CONSUMO ENERGETICO</span><b>'+(kwh?kwh.toLocaleString('it-IT')+' kWh/anno':'Da definire')+'</b></div><div class="row"><span>PROFILO DI UTILIZZO</span><b>'+esc(usage)+'</b></div><div class="row"><span>OBIETTIVO PRINCIPALE</span><b>'+esc(goal)+'</b></div></div>'+
+    '<p class="result-definition">Il punteggio sintetizza quanto il tuo profilo rende utile approfondire il caso con ECON.</p><div class="actions"><button id="profileNext" class="btn result-cta">Sblocca simulazione e sorpresa →</button></div>';
+}
+function leadUnlockBody(){
+  return '<div class="unlock-card"><label class="unlock-label" for="mobile">Numero di cellulare</label><input id="mobile" class="field result-mobile" type="tel" placeholder="Cellulare" inputmode="tel" autocomplete="tel" aria-label="Cellulare"><div class="result-secondary"><div class="two"><input id="first" class="field" placeholder="Nome" autocomplete="given-name" aria-label="Nome"><input id="last" class="field" placeholder="Cognome" autocomplete="family-name" aria-label="Cognome"></div><input id="email" class="field" type="email" placeholder="Email" inputmode="email" autocomplete="email" aria-label="Email"></div></div>'+
+    '<label class="check"><input id="privacy" type="checkbox"> <span>Ho preso visione dell’<a id="privacyLink" class="legal-link" href="'+esc(state.cfg?.privacy_url||'#')+'" target="_blank" rel="noopener">informativa privacy</a>.</span></label>'+
+    '<p class="micro"><b>Niente spam. Nessuna chiamata commerciale senza una tua richiesta.</b></p>'+
+    '<label class="check"><input id="commercial" type="checkbox"> <span>Voglio approfondire con ECON la soluzione più adatta al mio caso.<br><small>Selezionando questa voce chiedi a ECON di contattarti per approfondire il profilo appena costruito.</small></span></label>'+
+    '<div id="leadStatus" class="status"></div><div class="actions"><button id="leadSave" class="btn result-cta">Scopri il tuo potenziale con ECON →</button></div>';
+}
+function economicResultBody(e,signal,surprise){
+  let metrics='';
+  if(e)metrics='<div class="result-metrics"><div class="result-metric"><b>'+e.kwp.toFixed(1)+' kWp</b><span>Sistema FV indicativo</span></div><div class="result-metric"><b>'+Math.round(e.benefit).toLocaleString('it-IT')+' €</b><span>Beneficio stimato / anno</span></div><div class="result-metric"><b>'+e.payback.toFixed(1)+' anni</b><span>Rientro semplice simulato</span></div></div>';
+  else metrics='<div class="notice"><b>Simulazione economica da completare.</b><br><span class="small">Manca un dato economico utilizzabile per chiudere il primo scenario.</span></div>';
+  const diagnosis=(e?signal.copy+' ':'')+profileInsight();
+  const request=state.a.commercial_request?'<div class="notice"><b>Approfondimento ECON richiesto ✓</b></div>':'';
+  return '<div class="sim-signal">'+esc(signal.label)+'</div>'+metrics+'<div class="result-diagnosis"><b>LETTURA ECON</b><span>'+esc(diagnosis)+'</span></div><div class="reward-v2"><small>SORPRESA ECON SBLOCCATA</small><h3>'+esc(surprise.title)+'</h3><p>'+esc(surprise.reason)+'</p></div>'+request;
+}
 `;
+
 if (!html.includes('function render(){')) throw new Error('Could not locate render function');
 html = html.replace('function render(){', `${helpers}\nfunction render(){`);
-html = html.replace("Math.min(100,n/29*100)", "Math.min(100,n/28*100)");
+if (!html.includes('Math.min(100,n/29*100)')) throw new Error('Could not locate progress denominator');
+html = html.replace('Math.min(100,n/29*100)', 'Math.min(100,n/28*100)');
 
 function replaceBetween(startMarker,endMarker,replacement,label){
   const start=html.indexOf(startMarker);
@@ -103,20 +126,13 @@ function replaceBetween(startMarker,endMarker,replacement,label){
   html=html.slice(0,start)+replacement+html.slice(end);
 }
 
-const billConfirmScreen = String.raw`else if(n===18){const f=[['annual_kwh','Consumo di riferimento','kWh'],['annual_spend','Spesa elettrica di riferimento','€'],['period_kwh','Consumo del periodo','kWh'],['bill_amount','Importo fattura','€'],['coverage_months','Copertura','mesi'],['pod','POD',''],['power_kw','Potenza','kW'],['supply_address','Indirizzo di fornitura','']];h=frame('DATI LETTI DALLA BOLLETTA','Prima del risultato, <span class="accent">conferma</span> i dati.','Ti mostriamo cosa abbiamo rilevato. Se qualcosa non torna, correggi i tre valori principali.',` + "`" + `<div class="card white-card">${f.map(x=>` + "`" + `<div class="row"><span>${x[1]}<br><small>${esc(billSource(x[0]))}</small></span><b>${esc(billVal(x[0])||'Non rilevato')} ${x[2]}</b></div>` + "`" + `).join('')}</div><h3>Correzioni eventuali</h3><div class="two"><input id="cKwh" class="field" inputmode="decimal" placeholder="kWh annui" value="${esc(billVal('annual_kwh'))}"><input id="cSpend" class="field" inputmode="decimal" placeholder="Spesa annua €" value="${esc(billVal('annual_spend'))}"></div><input id="cMonths" class="field" inputmode="numeric" placeholder="Mesi coperti" value="${esc(billVal('coverage_months'))}"><p class="small">Una correzione viene classificata come dato confermato dall’utente.</p><div class="actions"><button id="billConfirm" class="btn">Conferma e continua</button></div>` + "`" + `)}
+const billConfirmScreen = String.raw`else if(n===18){const f=[['annual_kwh','Consumo di riferimento','kWh'],['annual_spend','Spesa elettrica di riferimento','€'],['period_kwh','Consumo del periodo','kWh'],['bill_amount','Importo fattura','€'],['coverage_months','Copertura','mesi'],['pod','POD',''],['power_kw','Potenza','kW'],['supply_address','Indirizzo di fornitura','']];const rows=f.map(x=>'<div class="row"><span>'+x[1]+'<br><small>'+esc(billSource(x[0]))+'</small></span><b>'+esc(billVal(x[0])||'Non rilevato')+' '+x[2]+'</b></div>').join('');h=frame('DATI LETTI DALLA BOLLETTA','Prima del risultato, <span class="accent">conferma</span> i dati.','Ti mostriamo cosa abbiamo rilevato. Se qualcosa non torna, correggi i tre valori principali.','<div class="card white-card">'+rows+'</div><h3>Correzioni eventuali</h3><div class="two"><input id="cKwh" class="field" inputmode="decimal" placeholder="kWh annui" value="'+esc(billVal('annual_kwh'))+'"><input id="cSpend" class="field" inputmode="decimal" placeholder="Spesa annua €" value="'+esc(billVal('annual_spend'))+'"></div><input id="cMonths" class="field" inputmode="numeric" placeholder="Mesi coperti" value="'+esc(billVal('coverage_months'))+'"><p class="small">Una correzione viene classificata come dato confermato dall’utente.</p><div class="actions"><button id="billConfirm" class="btn">Conferma e continua</button></div>')}
 `;
 replaceBetween('else if(n===18){','else if(n===24){',billConfirmScreen,'bill confirmation and obsolete result screens');
 
-const resultScreens = String.raw`else if(n===26){
-  state.scoreAfter=profileOpportunityScore();
-  const band=profileOpportunityBand(state.scoreAfter),surprise=surpriseForProfile();
-  state.a.profile_score=state.scoreAfter;state.a.profile_band=band.label;state.a.surprise=surprise.title;
-  const usage=single[6].o[state.a.usage_timing??3]?.[0]||'Da definire',goal=single[9].o[state.a.primary_goal??5]?.[0]||'Da definire',kwh=+billVal('annual_kwh')||0;
-  h=frame('IL TUO PROFILO ECON',band.headline,'Le tue risposte e i dati disponibili indicano quanto vale la pena approfondire il tuo Sistema Energia con ECON.',` + "`" + `<div class="result-score-wrap"><div class="result-score">${state.scoreAfter}<small>/100</small></div><div class="result-band">${band.label}</div></div><div class="profile-compact"><div class="row"><span>CONSUMO ENERGETICO</span><b>${kwh?kwh.toLocaleString('it-IT')+' kWh/anno':'Da definire'}</b></div><div class="row"><span>PROFILO DI UTILIZZO</span><b>${esc(usage)}</b></div><div class="row"><span>OBIETTIVO PRINCIPALE</span><b>${esc(goal)}</b></div></div><p class="result-definition">Il punteggio sintetizza quanto il tuo profilo rende utile approfondire il caso con ECON.</p><div class="actions"><button id="profileNext" class="btn result-cta">Sblocca simulazione e sorpresa →</button></div>` + "`" + `)}
-else if(n===27)h=frame('IL TUO PROFILO È PRONTO','Scopri il tuo <span class="accent">potenziale</span> con ECON.','Collega il risultato a te per sbloccare la simulazione economica e la sorpresa dedicata al tuo profilo.',` + "`" + `<div class="unlock-card"><label class="unlock-label" for="mobile">Numero di cellulare</label><input id="mobile" class="field result-mobile" type="tel" placeholder="Cellulare" inputmode="tel" autocomplete="tel" aria-label="Cellulare"><div class="result-secondary"><div class="two"><input id="first" class="field" placeholder="Nome" autocomplete="given-name" aria-label="Nome"><input id="last" class="field" placeholder="Cognome" autocomplete="family-name" aria-label="Cognome"></div><input id="email" class="field" type="email" placeholder="Email" inputmode="email" autocomplete="email" aria-label="Email"></div></div><label class="check"><input id="privacy" type="checkbox"> <span>Ho preso visione dell’<a id="privacyLink" class="legal-link" href="${esc(state.cfg?.privacy_url||'#')}" target="_blank" rel="noopener">informativa privacy</a>.</span></label><p class="micro"><b>Niente spam. Nessuna chiamata commerciale senza una tua richiesta.</b></p><label class="check"><input id="commercial" type="checkbox"> <span>Voglio approfondire con ECON la soluzione più adatta al mio caso.<br><small>Selezionando questa voce chiedi a ECON di contattarti per approfondire il profilo appena costruito.</small></span></label><div id="leadStatus" class="status"></div><div class="actions"><button id="leadSave" class="btn result-cta">Scopri il tuo potenziale con ECON →</button></div>` + "`" + `);
-else if(n===28){
-  const e=economic(),signal=economicSignal(e),surprise=surpriseForProfile();state.a.surprise=surprise.title;
-  h=frame('IL TUO POTENZIALE ECON','Il primo scenario sta in <span class="accent">piedi</span>?','',` + "`" + `<div class="sim-signal">${signal.label}</div>${e?` + "`" + `<div class="result-metrics"><div class="result-metric"><b>${e.kwp.toFixed(1)} kWp</b><span>Sistema FV indicativo</span></div><div class="result-metric"><b>${Math.round(e.benefit).toLocaleString('it-IT')} €</b><span>Beneficio stimato / anno</span></div><div class="result-metric"><b>${e.payback.toFixed(1)} anni</b><span>Rientro semplice simulato</span></div></div>` + "`" + `:` + "`" + `<div class="notice"><b>Simulazione economica da completare.</b><br><span class="small">Manca un dato economico utilizzabile per chiudere il primo scenario.</span></div>` + "`" + `}<div class="result-diagnosis"><b>LETTURA ECON</b><span>${e?signal.copy:profileInsight()} ${e?profileInsight():''}</span></div><div class="reward-v2"><small>SORPRESA ECON SBLOCCATA</small><h3>${esc(surprise.title)}</h3><p>${esc(surprise.reason)}</p></div>${state.a.commercial_request?` + "`" + `<div class="notice"><b>Approfondimento ECON richiesto ✓</b></div>` + "`" + `:''}` + "`" + `)}
+const resultScreens = String.raw`else if(n===26){state.scoreAfter=profileOpportunityScore();const band=profileOpportunityBand(state.scoreAfter),surprise=surpriseForProfile();state.a.profile_score=state.scoreAfter;state.a.profile_band=band.label;state.a.surprise=surprise.title;h=frame('IL TUO PROFILO ECON',band.headline,'Le tue risposte e i dati disponibili indicano quanto vale la pena approfondire il tuo Sistema Energia con ECON.',profileResultBody(state.scoreAfter,band))}
+else if(n===27)h=frame('IL TUO PROFILO È PRONTO','Scopri il tuo <span class="accent">potenziale</span> con ECON.','Collega il risultato a te per sbloccare la simulazione economica e la sorpresa dedicata al tuo profilo.',leadUnlockBody());
+else if(n===28){const e=economic(),signal=economicSignal(e),surprise=surpriseForProfile();state.a.surprise=surprise.title;h=frame('IL TUO POTENZIALE ECON','Il primo scenario sta in <span class="accent">piedi</span>?','',economicResultBody(e,signal,surprise))}
 `;
 replaceBetween('else if(n===26){','\nv.innerHTML=h;bind();}',resultScreens,'three-screen result flow');
 
@@ -129,7 +145,7 @@ const newBillHandler="if(n===18)$('#billConfirm').onclick=()=>{const ck=+$('#cKw
 html=html.slice(0,bind18)+newBillHandler+html.slice(bind24);
 
 const bindStart2=html.indexOf('function bind(){');
-const bind26=html.indexOf("if(n===26)",bindStart2);
+const bind26=html.indexOf('if(n===26)',bindStart2);
 const bindEnd=html.indexOf('}\nasync function uploadBill',bind26);
 if(bind26<0||bindEnd<0)throw new Error('Could not locate final result handlers');
 const newResultHandlers="if(n===26)$('#profileNext').onclick=()=>go(27);if(n===27){track('lead_form_opened');$('#leadSave').onclick=saveLead}";
