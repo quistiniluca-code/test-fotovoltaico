@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// Result architecture contract: final funnel is profile -> contact -> simulation + reward.
 const html = fs.readFileSync('public/index.html', 'utf8');
 
 const required = [
