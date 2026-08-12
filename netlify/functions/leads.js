@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
+import { upsertLeadToDatabase } from "./_shared/database.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const MAX_LEAD_JSON_CHARS = 50000;
@@ -96,6 +97,16 @@ async function persistLead(payload, leadId) {
   return { key, created_at: createdAt, updated_at: now };
 }
 
+async function persistDatabaseSafely(payload, leadId) {
+  try {
+    const stored = await upsertLeadToDatabase(payload, leadId);
+    return { ok: true, ...stored };
+  } catch (error) {
+    console.error("ECON Netlify Database lead write failed", error instanceof Error ? error.message : error);
+    return { ok: false };
+  }
+}
+
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
@@ -129,6 +140,45 @@ export default async (request) => {
         adapter: "netlify_blobs",
         persisted: true,
         stored_at: stored.updated_at,
+      }, 201);
+    }
+
+    if (mode === "dual") {
+      const blobStored = await persistLead(body, leadId);
+      const databaseStored = await persistDatabaseSafely(body, leadId);
+      return json({
+        ok: true,
+        lead_id: leadId,
+        adapter: "netlify_blobs+netlify_database",
+        persisted: true,
+        blob_persisted: true,
+        database_persisted: databaseStored.ok,
+        stored_at: databaseStored.updated_at || blobStored.updated_at,
+      }, 201);
+    }
+
+    if (mode === "database") {
+      const databaseStored = await persistDatabaseSafely(body, leadId);
+      if (databaseStored.ok) {
+        return json({
+          ok: true,
+          lead_id: leadId,
+          adapter: "netlify_database",
+          persisted: true,
+          database_persisted: true,
+          stored_at: databaseStored.updated_at,
+        }, 201);
+      }
+
+      const fallback = await persistLead(body, leadId);
+      return json({
+        ok: true,
+        lead_id: leadId,
+        adapter: "netlify_blobs_fallback",
+        persisted: true,
+        blob_persisted: true,
+        database_persisted: false,
+        stored_at: fallback.updated_at,
       }, 201);
     }
 
