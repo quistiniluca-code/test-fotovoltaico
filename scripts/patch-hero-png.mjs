@@ -10,21 +10,51 @@ const outputFile = path.join(outputDir, 'econ-home-energy.png');
 // Palette-optimized PNG derived from the supplied visual, preserving dimensions and composition.
 const expectedSha256 = '2e99c3fbc6ffca2f4cc818c920cb85154da8d1df59c9b39ee4877d70763c5c89';
 const marker = 'HERO PNG · supplied asset · v1';
+const expectedChunkHashes = new Map([
+  ['econ-home-energy.b64.00', 'd20942bfdd7940bf'],
+  ['econ-home-energy.b64.01', 'dd8cf05b2f43618b'],
+  ['econ-home-energy.b64.020', 'dc005cf399cd7186'],
+  ['econ-home-energy.b64.021', 'f9f3ee5114a8a094'],
+  ['econ-home-energy.b64.03', '6ec85de968d34d96'],
+  ['econ-home-energy.b64.04', 'ff7519bde02ae0a0'],
+  ['econ-home-energy.b64.05', '88bbcad34e900620'],
+  ['econ-home-energy.b64.06', 'be32963205bd640b'],
+  ['econ-home-energy.b64.07', 'f514c20b16f73afd'],
+  ['econ-home-energy.b64.08', 'd4af1e17e855f91b'],
+  ['econ-home-energy.b64.09', '10a0d95da47f12bb'],
+  ['econ-home-energy.b64.100', '8febe1d90cc407eb'],
+  ['econ-home-energy.b64.101', '86b676ff928f6b08'],
+  ['econ-home-energy.b64.11', '9941368b5bd6bb44'],
+  ['econ-home-energy.b64.12', 'c07a82dc66395ff8'],
+  ['econ-home-energy.b64.13', '1610d13c1e07bb78'],
+  ['econ-home-energy.b64.14', 'ad0e915f5e78488d'],
+  ['econ-home-energy.b64.15', 'dc6f259b3fcfb4a6'],
+  ['econ-home-energy.b64.160', 'f4e1573db2a691cd'],
+  ['econ-home-energy.b64.161', '74ce6b4d19b42e92'],
+  ['econ-home-energy.b64.170', 'c09f8f751de7e71f'],
+  ['econ-home-energy.b64.171', 'ddc1d9f0709666f4'],
+]);
 
 const chunks = fs.readdirSync(sourceDir)
   .filter((name) => /^econ-home-energy\.b64\.\d+$/.test(name))
   .sort();
 
 if (!chunks.length) throw new Error('Supplied hero PNG chunks are missing');
+if (chunks.length !== expectedChunkHashes.size) {
+  throw new Error(`Supplied hero PNG chunk count mismatch: ${chunks.length}/${expectedChunkHashes.size}`);
+}
 
-const parts = chunks.map((name) => ({
-  name,
-  value: fs.readFileSync(path.join(sourceDir, name), 'utf8').trim(),
-}));
-console.log(`Hero PNG chunks: ${parts.map(({ name, value }) => `${name}:${value.length}`).join(', ')}`);
+const parts = chunks.map((name) => {
+  const value = fs.readFileSync(path.join(sourceDir, name), 'utf8').trim();
+  const expected = expectedChunkHashes.get(name);
+  const actual = createHash('sha256').update(value).digest('hex').slice(0, 16);
+  if (!expected) throw new Error(`Unexpected supplied hero PNG chunk: ${name}`);
+  if (actual !== expected) throw new Error(`Supplied hero PNG chunk mismatch: ${name} ${actual} != ${expected}`);
+  return { name, value };
+});
 
 const encoded = parts.map(({ value }) => value).join('');
-console.log(`Hero PNG base64 length: ${encoded.length}`);
+if (encoded.length !== 187388) throw new Error(`Supplied hero PNG base64 length mismatch: ${encoded.length}`);
 const image = Buffer.from(encoded, 'base64');
 const digest = createHash('sha256').update(image).digest('hex');
 
