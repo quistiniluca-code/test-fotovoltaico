@@ -17,6 +17,7 @@ const required = [
   'netlify/functions/admin-leads.js',
   'netlify/functions/events.js',
   'tests/lead-storage-v18.test.mjs',
+  'tests/result-flow-v2.test.mjs',
 ];
 
 for (const file of required) {
@@ -34,8 +35,9 @@ for (const marker of [
   "import('/assets/bill-parser.js')", 'browser-local', 'nessun servizio OCR esterno',
   "power_kw:billVal('power_kw')", 'state.a.lead_id=j.lead_id',
   'Aumentare l’indipendenza dalla rete', 'const attribution=(()=>', 'Informativa privacy non configurata',
-  'PENSAVI → EMERGE', 'IL PUNTO CIECO', 'DOPO IL PRIMO DATO', 'ULTIMO DATO SUL TUO CASO',
-  'QUADRO AGGIORNATO', 'SORPRESA ECON SBLOCCATA', 'RIEPILOGO'
+  'ULTIMO DATO SUL TUO CASO', 'IL TUO PROFILO ECON', 'Sblocca simulazione e sorpresa',
+  'Scopri il tuo potenziale con ECON', 'IL TUO POTENZIALE ECON', 'SORPRESA ECON SBLOCCATA',
+  'WALLBOX', 'PIANO A INDUZIONE', 'TERMOSTATO SMART', 'ENERGY MONITOR'
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -97,4 +99,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.8 launch hardening');
+console.log('Repository verification: PASS · V1.8 launch hardening + Result Flow V2');
