@@ -13,6 +13,7 @@
     "patch:hero-mobile": "node scripts/patch-hero-mobile-fit.mjs",
     "patch:result-v2": "node scripts/patch-result-flow-v2.mjs && node -e \"const fs=require('fs');const p='public/index.html';let h=fs.readFileSync(p,'utf8');const a='go(24)}'+'if(n===24){',b='go(24)};'+'if(n===24){';if(!h.includes(a))throw Error('result handler boundary missing');fs.writeFileSync(p,h.replace(a,b));\"",
     "patch:economic-v3": "node scripts/patch-economic-commercial-v3.mjs",
+    "patch:mobile-global": "node scripts/patch-global-mobile-fit.mjs",
     "test:stream-compat": "node tests/readable-stream-compat.test.mjs",
     "test:bill-parser": "node tests/bill-parser-v17.test.mjs",
     "test:lead-storage": "node tests/lead-storage-v18.test.mjs",
@@ -20,9 +21,10 @@
     "test:economic-v3": "node tests/commercial-economic-v3.test.mjs",
     "test:database-v1": "node tests/database-dual-write-v1.test.mjs",
     "test:hero-mobile": "node tests/hero-mobile-fit.test.mjs",
+    "test:mobile-global": "node tests/global-mobile-fit.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:database-v1 && npm run test:hero-mobile && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:mobile-global && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:database-v1 && npm run test:hero-mobile && npm run test:mobile-global && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
