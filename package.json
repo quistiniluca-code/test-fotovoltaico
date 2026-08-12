@@ -16,13 +16,15 @@
     "test:lead-storage": "node tests/lead-storage-v18.test.mjs",
     "test:result-v2": "node tests/result-flow-v2.test.mjs",
     "test:economic-v3": "node tests/commercial-economic-v3.test.mjs",
+    "test:database-v1": "node tests/database-dual-write-v1.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:result-v2 && npm run patch:economic-v3 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:result-v2 && npm run patch:economic-v3 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:database-v1 && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
     "@netlify/blobs": "9.1.5",
+    "@netlify/database": "1.1.0",
     "@netlify/functions": "5.3.0",
     "@tesseract.js-data/ita": "1.0.0",
     "pdfjs-dist": "6.2.108",
