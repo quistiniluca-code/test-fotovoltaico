@@ -18,6 +18,7 @@
     "patch:consent-v1": "node scripts/patch-consent-v1.mjs",
     "patch:mobile-global": "node scripts/patch-global-mobile-fit.mjs",
     "patch:mobile-viewport-v2": "node scripts/patch-mobile-viewport-fit-v2.mjs",
+    "patch:mobile-ui-v4": "node scripts/patch-mobile-ui-polish-v4.mjs",
     "test:stream-compat": "node tests/readable-stream-compat.test.mjs",
     "test:bill-parser": "node tests/bill-parser-v17.test.mjs",
     "test:lead-storage": "node tests/lead-storage-v18.test.mjs",
@@ -33,7 +34,7 @@
     "test:mobile-viewport-v2": "node tests/mobile-viewport-fit-v2.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:database-v1 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run patch:mobile-ui-v4 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:database-v1 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
