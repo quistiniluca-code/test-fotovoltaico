@@ -19,6 +19,7 @@ export default async () => {
   const metaPixelId = publicTrackingId("ECON_META_PIXEL_ID", /^\d{5,25}$/);
   const trackingConfigured = Boolean(googleAnalyticsId || googleAdsId || metaPixelId);
 
+  // Netlify applies updated function environment variables on a new deploy.
   return json({
     version: "1.8-consent-ready",
     privacy_url: privacyReady ? privacyUrl : null,
