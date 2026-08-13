@@ -140,6 +140,54 @@ function loadMeta(consent) {
   }
 }
 
+function conversionAlreadySent(provider, leadId) {
+  try {
+    return sessionStorage.getItem(`econ_paid_conversion_v1:${provider}:${leadId}`) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markConversionSent(provider, leadId) {
+  try {
+    sessionStorage.setItem(`econ_paid_conversion_v1:${provider}:${leadId}`, '1');
+  } catch {
+    // Provider-side event/transaction IDs still protect against duplicate conversion counting.
+  }
+}
+
+function firePaidLeadConversion(rawLeadId) {
+  const leadId = String(rawLeadId || '').trim();
+  if (!leadId || currentConsent?.marketing !== true || !trackingConfig) {
+    return { google_ads: false, meta_pixel: false, reason: 'marketing_consent_required' };
+  }
+
+  loadGoogle(currentConsent);
+  loadMeta(currentConsent);
+
+  let googleAds = false;
+  let metaPixel = false;
+  const adsId = trackingConfig.google_ads_id;
+  const adsLabel = trackingConfig.google_ads_conversion_label;
+
+  if (adsId && adsLabel && typeof window.gtag === 'function' && !conversionAlreadySent('google_ads', leadId)) {
+    window.gtag('event', 'conversion', {
+      send_to: `${adsId}/${adsLabel}`,
+      transaction_id: leadId,
+    });
+    markConversionSent('google_ads', leadId);
+    googleAds = true;
+  }
+
+  if (trackingConfig.meta_pixel_id && typeof window.fbq === 'function' && !conversionAlreadySent('meta_pixel', leadId)) {
+    window.fbq('track', 'Lead', {}, { eventID: leadId });
+    markConversionSent('meta_pixel', leadId);
+    metaPixel = true;
+  }
+
+  return { google_ads: googleAds, meta_pixel: metaPixel };
+}
+
 function applyConsent(consent) {
   currentConsent = consent;
   loadGoogle(consent);
@@ -315,6 +363,7 @@ async function initConsentManager() {
     get: () => ({ ...(currentConsent || { analytics: false, marketing: false }) }),
     analyticsAllowed: () => currentConsent?.analytics === true,
     marketingAllowed: () => currentConsent?.marketing === true,
+    fireLeadConversion: firePaidLeadConversion,
     openSettings: () => ui.settings.click(),
   };
 }

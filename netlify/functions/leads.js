@@ -4,6 +4,7 @@ import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
 import { upsertLeadToDatabase } from "./_shared/database.js";
+import { sendMetaLeadEvent } from "./_shared/meta-capi.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const MAX_LEAD_JSON_CHARS = 50000;
@@ -107,6 +108,11 @@ async function persistDatabaseSafely(payload, leadId) {
   }
 }
 
+async function leadResponseWithMeta(request, body, leadId, payload) {
+  const meta = await sendMetaLeadEvent({ request, body, leadId });
+  return json({ ...payload, meta_capi: meta.status }, 201);
+}
+
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
@@ -129,24 +135,24 @@ export default async (request) => {
 
     if (mode === "webhook") {
       await sendWebhook(body, leadId);
-      return json({ ok: true, lead_id: leadId, adapter: "crm_webhook" }, 201);
+      return leadResponseWithMeta(request, body, leadId, { ok: true, lead_id: leadId, adapter: "crm_webhook", persisted: true });
     }
 
     if (mode === "blobs") {
       const stored = await persistLead(body, leadId);
-      return json({
+      return leadResponseWithMeta(request, body, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs",
         persisted: true,
         stored_at: stored.updated_at,
-      }, 201);
+      });
     }
 
     if (mode === "dual") {
       const blobStored = await persistLead(body, leadId);
       const databaseStored = await persistDatabaseSafely(body, leadId);
-      return json({
+      return leadResponseWithMeta(request, body, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs+netlify_database",
@@ -154,24 +160,24 @@ export default async (request) => {
         blob_persisted: true,
         database_persisted: databaseStored.ok,
         stored_at: databaseStored.updated_at || blobStored.updated_at,
-      }, 201);
+      });
     }
 
     if (mode === "database") {
       const databaseStored = await persistDatabaseSafely(body, leadId);
       if (databaseStored.ok) {
-        return json({
+        return leadResponseWithMeta(request, body, leadId, {
           ok: true,
           lead_id: leadId,
           adapter: "netlify_database",
           persisted: true,
           database_persisted: true,
           stored_at: databaseStored.updated_at,
-        }, 201);
+        });
       }
 
       const fallback = await persistLead(body, leadId);
-      return json({
+      return leadResponseWithMeta(request, body, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs_fallback",
@@ -179,7 +185,7 @@ export default async (request) => {
         blob_persisted: true,
         database_persisted: false,
         stored_at: fallback.updated_at,
-      }, 201);
+      });
     }
 
     return json({ detail: "crm_disabled" }, 503);
