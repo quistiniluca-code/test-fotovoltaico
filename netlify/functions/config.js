@@ -15,6 +15,7 @@ export default async () => {
 
   const googleAnalyticsId = publicTrackingId("ECON_GOOGLE_ANALYTICS_ID", /^G-[A-Z0-9]+$/i);
   const googleAdsId = publicTrackingId("ECON_GOOGLE_ADS_ID", /^AW-\d+$/i);
+  const googleAdsConversionLabel = publicTrackingId("ECON_GOOGLE_ADS_CONVERSION_LABEL", /^[A-Z0-9_-]{6,120}$/i);
   const metaPixelId = publicTrackingId("ECON_META_PIXEL_ID", /^\d{5,25}$/);
   const trackingConfigured = Boolean(googleAnalyticsId || googleAdsId || metaPixelId);
 
@@ -38,6 +39,7 @@ export default async () => {
       consent_version: "2026-08-13",
       google_analytics_id: googleAnalyticsId,
       google_ads_id: googleAdsId,
+      google_ads_conversion_label: googleAdsConversionLabel,
       meta_pixel_id: metaPixelId,
     },
     economics: {
