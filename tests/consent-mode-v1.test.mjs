@@ -4,13 +4,18 @@ const html = fs.readFileSync('public/index.html', 'utf8');
 const manager = fs.readFileSync('public/assets/consent-manager.js', 'utf8');
 const css = fs.readFileSync('public/assets/consent-manager.css', 'utf8');
 const config = fs.readFileSync('netlify/functions/config.js', 'utf8');
+const leads = fs.readFileSync('netlify/functions/leads.js', 'utf8');
+const meta = fs.readFileSync('netlify/functions/_shared/meta-capi.js', 'utf8');
 const netlify = fs.readFileSync('netlify.toml', 'utf8');
 
 for (const marker of [
   '<link rel="stylesheet" href="/assets/consent-manager.css">',
   '<script type="module" src="/assets/consent-manager.js"></script>',
+  'tracking_consent:{analytics:',
+  'fireLeadConversion?.(state.a.lead_id)',
+  'j.ok&&j.persisted&&state.a.lead_id',
 ]) {
-  if (!html.includes(marker)) throw new Error(`Consent asset missing from built HTML: ${marker}`);
+  if (!html.includes(marker)) throw new Error(`Consent/conversion marker missing from built HTML: ${marker}`);
 }
 
 for (const marker of [
@@ -29,6 +34,11 @@ for (const marker of [
   'Meta Pixel',
   'SIX_MONTHS_MS',
   'trackingConfig?.configured',
+  'fireLeadConversion: firePaidLeadConversion',
+  "window.gtag('event', 'conversion'",
+  'transaction_id: leadId',
+  "window.fbq('track', 'Lead', {}, { eventID: leadId })",
+  "currentConsent?.marketing !== true",
 ]) {
   if (!manager.includes(marker)) throw new Error(`Consent manager missing marker: ${marker}`);
 }
@@ -49,11 +59,31 @@ if (!manager.includes("script.src = 'https://connect.facebook.net/en_US/fbevents
 for (const marker of [
   'ECON_GOOGLE_ANALYTICS_ID',
   'ECON_GOOGLE_ADS_ID',
+  'ECON_GOOGLE_ADS_CONVERSION_LABEL',
+  'google_ads_conversion_label: googleAdsConversionLabel',
   'ECON_META_PIXEL_ID',
   'consent_mode: "basic"',
   'consent_version: "2026-08-13"',
 ]) {
   if (!config.includes(marker)) throw new Error(`Runtime tracking config missing marker: ${marker}`);
+}
+
+for (const marker of ['sendMetaLeadEvent', 'meta_capi: meta.status']) {
+  if (!leads.includes(marker)) throw new Error(`Lead endpoint missing Meta CAPI marker: ${marker}`);
+}
+for (const marker of [
+  'ECON_META_CAPI_ACCESS_TOKEN',
+  'body?.tracking_consent?.marketing !== true',
+  'event_name: "Lead"',
+  'event_id: leadId',
+  'action_source: "website"',
+  'sha256(email)',
+  'sha256(phone)',
+]) {
+  if (!meta.includes(marker)) throw new Error(`Meta CAPI helper missing marker: ${marker}`);
+}
+if (manager.includes('ECON_META_CAPI_ACCESS_TOKEN') || html.includes('ECON_META_CAPI_ACCESS_TOKEN')) {
+  throw new Error('Meta CAPI access token must never be exposed to the browser');
 }
 
 for (const host of [
@@ -70,4 +100,4 @@ if (!css.includes('.econ-consent-actions') || !css.includes('.econ-consent-setti
   throw new Error('Consent UI styles incomplete');
 }
 
-console.log('Consent mode V1 regression: PASS · opt-in defaults · Google Consent Mode v2 · Meta gated');
+console.log('Consent mode V1 regression: PASS · opt-in defaults · Google lead conversion · Meta Pixel/CAPI dedupe ID');
