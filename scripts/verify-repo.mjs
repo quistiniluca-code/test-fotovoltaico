@@ -18,9 +18,11 @@ const required = [
   'netlify/functions/analytics-summary.js',
   'netlify/functions/events.js',
   'scripts/patch-remove-confidence.mjs',
+  'scripts/patch-address-flow-v2.mjs',
   'tests/lead-storage-v18.test.mjs',
   'tests/result-flow-v2.test.mjs',
   'tests/scoped-flow-regression.test.mjs',
+  'tests/address-flow-v2.test.mjs',
 ];
 
 for (const file of required) {
@@ -41,7 +43,10 @@ for (const marker of [
   'ULTIMO DATO SUL TUO CASO', 'IL TUO PROFILO ECON', 'Sblocca simulazione e sorpresa',
   'Scopri il tuo potenziale con ECON', 'IL TUO POTENZIALE ECON', 'SORPRESA ECON SBLOCCATA',
   'WALLBOX', 'PIANO A INDUZIONE', 'TERMOSTATO SMART', 'ENERGY MONITOR',
-  "$('#pill')?.addEventListener('click',()=>go(n===14?16:n+1))"
+  "$('#pill')?.addEventListener('click',()=>go(n===14?16:n+1))",
+  'ADDRESS FLOW V2 · OCR-first + manual fallback', 'function parseSupplyAddress(rawValue)',
+  'id="street"', 'id="civic"', 'id="city"', 'id="province"',
+  'Indirizzo precompilato dalla bolletta', 'Indirizzo non rilevato dalla bolletta'
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -61,6 +66,9 @@ for (const marker of [
 }
 if (/\botp\b/i.test(html) || /one[- ]time password/i.test(html) || /\/api\/otp/i.test(html)) {
   throw new Error('OTP flow must remain absent from frontend');
+}
+for (const marker of ['id="addressSearch"', 'id="postal"', "fetch('/api/address/suggest?q='", 'Cerca via / piazza e numero civico']) {
+  if (html.includes(marker)) throw new Error(`Legacy address flow marker still present: ${marker}`);
 }
 
 const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
@@ -118,4 +126,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · scoped confidence removal + no OTP + secured analytics');
+console.log('Repository verification: PASS · confidence removed + no OTP + secured analytics + OCR-first address flow');
