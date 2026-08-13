@@ -1,6 +1,34 @@
 import { getStore } from "@netlify/blobs";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
+
+const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
+
+function secureEqual(a, b) {
+  const left = Buffer.from(String(a || ""));
+  const right = Buffer.from(String(b || ""));
+  return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function suppliedToken(request) {
+  const auth = String(request.headers.get("authorization") || "");
+  const bearer = auth.match(/^Bearer\s+(.+)$/i);
+  if (bearer) return bearer[1].trim();
+  return String(request.headers.get("x-admin-token") || "").trim();
+}
+
+function authorized(request) {
+  const supplied = suppliedToken(request);
+  const expected = env("ECON_ADMIN_TOKEN");
+  if (expected && expected.length >= 24) return secureEqual(supplied, expected);
+  const digest = String(env("ECON_ADMIN_AUTH_DIGEST") || ADMIN_TOKEN_SHA256_FALLBACK).trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(digest) && Boolean(supplied) && secureEqual(sha256Hex(supplied), digest);
+}
 
 const STAGES = [
   ["Test avviato", 0],
@@ -13,8 +41,8 @@ const STAGES = [
 
 export default async (request) => {
   if (request.method !== "GET") return json({ detail: "method_not_allowed" }, 405);
-  const token = env("ECON_ADMIN_TOKEN");
-  if (token && request.headers.get("x-admin-token") !== token) return json({ detail: "unauthorized" }, 401);
+  if (!authorized(request)) return json({ detail: "unauthorized" }, 401);
+
   const store = getStore("econ-fv-events-v1");
   const { blobs } = await store.list();
   const events = [];
@@ -50,7 +78,7 @@ export default async (request) => {
     }
   }
   return json({
-    version: "1.6",
+    version: "1.8-secure",
     sessions: sessionCount,
     funnel,
     commercial_requests: commercial,
@@ -60,4 +88,9 @@ export default async (request) => {
   });
 };
 
-export const config = { path: "/api/analytics/summary" };
+export const config = {
+  path: "/api/analytics/summary",
+  rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ["ip", "domain"] },
+};
+
+export const __test = { authorized, secureEqual, sha256Hex, ADMIN_TOKEN_SHA256_FALLBACK };
