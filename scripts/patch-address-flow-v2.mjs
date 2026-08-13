@@ -71,7 +71,7 @@ const bindStart = html.indexOf('function bind(){');
 const bind24 = html.indexOf('if(n===24){', bindStart);
 const bind26 = html.indexOf('if(n===26)', bind24);
 if (bindStart < 0 || bind24 < 0 || bind26 < 0 || bind26 <= bind24) throw new Error('Could not locate address handler');
-const addressHandler = "if(n===24){const initial=billAddressParts(),source=initial.fromBill?'bill_ocr_reviewed':'manual';$('#addressOk').onclick=()=>{const status=$('#addressStatus'),street=$('#street').value.trim(),civic=$('#civic').value.trim(),city=$('#city').value.trim(),province=$('#province').value.trim();const invalid=!street||street.length<3||!civic||!city||city.length<2||!province||province.length<2;if(invalid){status.className='status error address-status';status.textContent='Completa via, civico, comune e provincia.';const first=[['#street',street&&street.length>=3],['#civic',Boolean(civic)],['#city',city&&city.length>=2],['#province',province&&province.length>=2]].find(x=>!x[1]);if(first)$(first[0]).focus();return}const provinceNormalized=province.length<=3?province.toUpperCase():province;state.a.address=`${street} ${civic}, ${city} ${provinceNormalized}`;state.a.address_source=source;track('address_confirmed',{source});go(25)}}";
+const addressHandler = "if(n===24){const initial=billAddressParts(),hasBillPrefill=Boolean(initial.street||initial.civic||initial.city||initial.province),source=hasBillPrefill?'bill_read_reviewed':'manual';$('#addressOk').onclick=()=>{const status=$('#addressStatus'),street=$('#street').value.trim(),civic=$('#civic').value.trim(),city=$('#city').value.trim(),province=$('#province').value.trim();const invalid=!street||street.length<3||!civic||!city||city.length<2||!province||province.length<2;if(invalid){status.className='status error address-status';status.textContent='Completa via, civico, comune e provincia.';const first=[['#street',street&&street.length>=3],['#civic',Boolean(civic)],['#city',city&&city.length>=2],['#province',province&&province.length>=2]].find(x=>!x[1]);if(first)$(first[0]).focus();return}const provinceNormalized=province.length<=3?province.toUpperCase():province;state.a.address=`${street} ${civic}, ${city} ${provinceNormalized}`;state.a.address_source=source;track('address_confirmed',{source});go(25)}}";
 html = html.slice(0, bind24) + addressHandler + html.slice(bind26);
 
 const fnStart = html.indexOf('async function addressSearch(q){');
@@ -81,9 +81,9 @@ if (fnStart >= 0 && saveLeadStart > fnStart) html = html.slice(0, fnStart) + htm
 for (const forbidden of ['id="addressSearch"','id="postal"',"fetch('/api/address/suggest?q='"]) {
   if (html.includes(forbidden)) throw new Error(`Legacy address UI marker still present: ${forbidden}`);
 }
-for (const required of ['function parseSupplyAddress(rawValue)','id="street"','id="civic"','id="city"','id="province"','Indirizzo precompilato dalla bolletta','Indirizzo non rilevato dalla bolletta',"source=initial.fromBill?'bill_ocr_reviewed':'manual'"]) {
+for (const required of ['function parseSupplyAddress(rawValue)','id="street"','id="civic"','id="city"','id="province"','Indirizzo precompilato dalla bolletta','Indirizzo non rilevato dalla bolletta',"source=hasBillPrefill?'bill_read_reviewed':'manual'"]) {
   if (!html.includes(required)) throw new Error(`Address Flow V2 marker missing: ${required}`);
 }
 
 fs.writeFileSync(file, html);
-console.log('Address Flow V2: PASS · OCR-first prefill · manual via/civico/comune/provincia · no duplicate search box');
+console.log('Address Flow V2: PASS · bill-reader prefill · manual via/civico/comune/provincia · no duplicate search box');
