@@ -9,7 +9,7 @@ const required = [
   'height:100vh;height:100svh',
   '.view:not(:has(.intro-v2))',
   '.options:has(.option:nth-child(6))',
-  ".continue-pill.show::after{content:'Continua  →'",
+  ".continue-pill.show::after{content:'Continua →'",
   '.actions{position:sticky',
   '.field{min-height:44px',
   '.result-score-wrap',
@@ -27,6 +27,9 @@ for (const token of required) {
   }
 }
 
+if (html.includes("content:'Continua  →'")) {
+  throw new Error('Global mobile fit regression: legacy double-space Continue label remains');
+}
 if (!html.includes('HERO MOBILE FIT · one-screen · v1')) {
   throw new Error('Global mobile fit regression: hero-specific mobile fit was lost');
 }
@@ -43,4 +46,4 @@ if (!html.includes('function economic(')) {
   throw new Error('Global mobile fit regression: economic engine missing');
 }
 
-console.log('Global mobile full-funnel regression: PASS · adaptive tight/ultra fit + Safari small viewport');
+console.log('Global mobile full-funnel regression: PASS · adaptive fit + canonical single Continue label');
