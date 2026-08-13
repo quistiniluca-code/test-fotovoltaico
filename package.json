@@ -15,6 +15,7 @@
     "patch:economic-v3": "node scripts/patch-economic-commercial-v3.mjs",
     "patch:remove-confidence": "node scripts/patch-remove-confidence.mjs",
     "patch:address-v2": "node scripts/patch-address-flow-v2.mjs",
+    "patch:consent-v1": "node scripts/patch-consent-v1.mjs",
     "patch:mobile-global": "node scripts/patch-global-mobile-fit.mjs",
     "test:stream-compat": "node tests/readable-stream-compat.test.mjs",
     "test:bill-parser": "node tests/bill-parser-v17.test.mjs",
@@ -23,12 +24,13 @@
     "test:economic-v3": "node tests/commercial-economic-v3.test.mjs",
     "test:scoped-flow": "node tests/scoped-flow-regression.test.mjs",
     "test:address-v2": "node tests/address-flow-v2.test.mjs",
+    "test:consent-v1": "node tests/consent-mode-v1.test.mjs",
     "test:database-v1": "node tests/database-dual-write-v1.test.mjs",
     "test:hero-mobile": "node tests/hero-mobile-fit.test.mjs",
     "test:mobile-global": "node tests/global-mobile-fit.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:mobile-global && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:scoped-flow && npm run test:address-v2 && npm run test:database-v1 && npm run test:hero-mobile && npm run test:mobile-global && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:database-v1 && npm run test:hero-mobile && npm run test:mobile-global && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
