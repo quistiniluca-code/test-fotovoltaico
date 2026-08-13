@@ -15,9 +15,12 @@ const required = [
   'netlify/functions/health.js',
   'netlify/functions/leads.js',
   'netlify/functions/admin-leads.js',
+  'netlify/functions/analytics-summary.js',
   'netlify/functions/events.js',
+  'scripts/patch-remove-confidence.mjs',
   'tests/lead-storage-v18.test.mjs',
   'tests/result-flow-v2.test.mjs',
+  'tests/scoped-flow-regression.test.mjs',
 ];
 
 for (const file of required) {
@@ -37,7 +40,8 @@ for (const marker of [
   'Aumentare l’indipendenza dalla rete', 'const attribution=(()=>', 'Informativa privacy non configurata',
   'ULTIMO DATO SUL TUO CASO', 'IL TUO PROFILO ECON', 'Sblocca simulazione e sorpresa',
   'Scopri il tuo potenziale con ECON', 'IL TUO POTENZIALE ECON', 'SORPRESA ECON SBLOCCATA',
-  'WALLBOX', 'PIANO A INDUZIONE', 'TERMOSTATO SMART', 'ENERGY MONITOR'
+  'WALLBOX', 'PIANO A INDUZIONE', 'TERMOSTATO SMART', 'ENERGY MONITOR',
+  "$('#pill')?.addEventListener('click',()=>go(n===14?16:n+1))"
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -47,6 +51,16 @@ if (html.includes("const belief=state.a.initial_system_belief;if([1,2,4].include
 }
 if (html.includes("supply_address:billVal('supply_address')")) {
   throw new Error('Redundant bill supply address is still persisted in bill_summary');
+}
+for (const marker of [
+  'Quanto sei sicuro della tua <span class="accent">scelta</span>?',
+  'confidence_before_data',
+  'confidence_after_first_data',
+]) {
+  if (html.includes(marker)) throw new Error(`Removed confidence flow marker still present: ${marker}`);
+}
+if (/\botp\b/i.test(html) || /one[- ]time password/i.test(html) || /\/api\/otp/i.test(html)) {
+  throw new Error('OTP flow must remain absent from frontend');
 }
 
 const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
@@ -68,6 +82,11 @@ if (healthFn.includes('ECON_PARSER_API_URL')) throw new Error('Health endpoint s
 const adminFn = fs.readFileSync('netlify/functions/admin-leads.js', 'utf8');
 for (const marker of ['ECON_ADMIN_TOKEN', 'ADMIN_TOKEN_SHA256_FALLBACK', 'ECON_ADMIN_AUTH_DIGEST', 'sha256Hex', '/api/admin/leads', 'format === "csv"', 'netlify_blobs']) {
   if (!adminFn.includes(marker)) throw new Error(`Admin lead inspector missing marker: ${marker}`);
+}
+
+const analyticsFn = fs.readFileSync('netlify/functions/analytics-summary.js', 'utf8');
+for (const marker of ['ECON_ADMIN_TOKEN', 'ECON_ADMIN_AUTH_DIGEST', 'ADMIN_TOKEN_SHA256_FALLBACK', 'unauthorized', '/api/analytics/summary', 'rateLimit']) {
+  if (!analyticsFn.includes(marker)) throw new Error(`Analytics summary auth missing marker: ${marker}`);
 }
 
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]).filter(Boolean);
@@ -99,4 +118,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · V1.8 launch hardening + Result Flow V2');
+console.log('Repository verification: PASS · scoped confidence removal + no OTP + secured analytics');
