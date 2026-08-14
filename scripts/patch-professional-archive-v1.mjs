@@ -20,6 +20,7 @@ const uploadMarker='async function uploadBill(file){';
 if(!html.includes(uploadMarker))throw new Error('uploadBill function not found');
 const helper=String.raw`
 /* ${marker} */
+const BILL_ARCHIVE_MAX_BYTES=4*1024*1024;
 async function archiveBillFile(file,privacyVersion){
   const fd=new FormData();
   fd.append('session_id',state.session);
@@ -37,6 +38,11 @@ async function archiveBillFile(file,privacyVersion){
 }
 `;
 html=html.replace(uploadMarker,helper+'\n'+uploadMarker);
+
+const uploadStart="async function uploadBill(file){\n  const st=$('#uploadStatus');";
+const uploadSized="async function uploadBill(file){\n  const st=$('#uploadStatus');\n  if(file.size>BILL_ARCHIVE_MAX_BYTES){st.className='status error';st.textContent='Il file supera 4 MB. Per archiviarlo in modo affidabile, usa un PDF o una foto fino a 4 MB.';track('bill_parse_failed',{reason:'bill_file_too_large_for_archive',processing:'browser-local'});return}";
+if(!html.includes(uploadStart))throw new Error('Local uploadBill start not found');
+html=html.replace(uploadStart,uploadSized);
 
 const parseSuccess="    if(!j.fields)j.fields={};\n    clearBillEstimateMetadata();";
 const keepFile="    if(!j.fields)j.fields={};\n    state.billFile=file;\n    state.billAttachment=null;\n    clearBillEstimateMetadata();";
@@ -89,9 +95,9 @@ html=html.replace(
   'Lettura locale nel browser · archivio del file originale solo al salvataggio della lead e dopo la presa visione privacy · nessun OCR esterno.'
 );
 
-for(const required of [marker,'billFile:null','billAttachment:null','/api/bill-attachments','privacy_acknowledged','bill_attachment:state.billAttachment||undefined','state.leadSaving=true','bill_archive_success','bill_archive_failed']){
+for(const required of [marker,'BILL_ARCHIVE_MAX_BYTES','billFile:null','billAttachment:null','/api/bill-attachments','privacy_acknowledged','bill_attachment:state.billAttachment||undefined','state.leadSaving=true','bill_archive_success','bill_archive_failed']){
   if(!html.includes(required))throw new Error(`Professional archive marker missing: ${required}`);
 }
 
 fs.writeFileSync(file,html);
-console.log('Professional archive V1: PASS · privacy-gated bill archive + canonical attachment + double-submit guard');
+console.log('Professional archive V1: PASS · privacy-gated bill archive + canonical attachment + size guard + double-submit guard');
