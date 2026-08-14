@@ -1,10 +1,15 @@
 import { getStore } from "@netlify/blobs";
-import { createHash } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
-import { upsertLeadToDatabase } from "./_shared/database.js";
+import { upsertLeadBundleToDatabase } from "./_shared/database.js";
 import { sendMetaLeadEvent } from "./_shared/meta-capi.js";
+import {
+  BILL_ATTACHMENT_TYPE,
+  BILL_FILE_STORE,
+  billAttachmentIdForLead,
+  leadIdForSession,
+} from "./_shared/lead-identity.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const MAX_LEAD_JSON_CHARS = 50000;
@@ -29,8 +34,38 @@ function validateLead(body, expectedPrivacyVersion = "") {
   return null;
 }
 
-function leadIdForSession(sessionId) {
-  return createHash("sha256").update(`econ-fv-v1:${sessionId}`).digest("hex").slice(0, 24);
+function actualBillMode(body) {
+  return body?.test?.answers?.bill_data_mode === "bill" || body?.test?.answers?.bill_flow_mode === "upload";
+}
+
+async function verifiedBillAttachment(body, leadId) {
+  const supplied = body?.bill_attachment || null;
+  if (!supplied && !actualBillMode(body)) return null;
+  if (!supplied) throw new Error("bill_attachment_required");
+
+  const store = getStore(BILL_FILE_STORE, { consistency: "strong" });
+  const manifest = await store.get(`lead/${leadId}/bill/manifest`, { type: "json" });
+  if (!manifest) throw new Error("bill_attachment_manifest_missing");
+
+  const expectedId = billAttachmentIdForLead(leadId);
+  const fieldsMatch =
+    manifest.schema === "econ.bill.attachment.v1" &&
+    manifest.attachment_id === expectedId &&
+    manifest.lead_id === leadId &&
+    manifest.attachment_type === BILL_ATTACHMENT_TYPE &&
+    manifest.blob_store === BILL_FILE_STORE &&
+    supplied.attachment_id === manifest.attachment_id &&
+    supplied.sha256 === manifest.sha256 &&
+    supplied.blob_key === manifest.blob_key;
+  if (!fieldsMatch) throw new Error("bill_attachment_mismatch");
+
+  const metadata = await store.getMetadata(manifest.blob_key);
+  if (!metadata) throw new Error("bill_attachment_blob_missing");
+  const m = metadata.metadata || {};
+  if (m.sha256 !== manifest.sha256 || m.lead_id !== leadId || Number(m.size_bytes) !== Number(manifest.size_bytes)) {
+    throw new Error("bill_attachment_integrity_mismatch");
+  }
+  return manifest;
 }
 
 async function sendWebhook(payload, leadId) {
@@ -60,11 +95,10 @@ async function sendWebhook(payload, leadId) {
   throw new Error(lastError);
 }
 
-async function persistLead(payload, leadId) {
-  const store = getStore(LEAD_STORE);
+async function persistLeadBlob(payload, leadId) {
+  const store = getStore(LEAD_STORE, { consistency: "strong" });
   const key = `lead/${leadId}`;
   const now = new Date().toISOString();
-
   let previous = null;
   try {
     previous = await store.get(key, { type: "json" });
@@ -74,7 +108,7 @@ async function persistLead(payload, leadId) {
 
   const createdAt = previous?.server?.created_at || previous?.created_at || now;
   const record = {
-    schema: "econ.lead.record.v1",
+    schema: "econ.lead.record.v2",
     lead_id: leadId,
     server: {
       created_at: createdAt,
@@ -92,25 +126,16 @@ async function persistLead(payload, leadId) {
       commercial_request: Boolean(payload?.contact?.commercial_fv_request),
       score: Number(payload?.test?.score) || 0,
       source: "econ-fv-test",
+      has_bill_attachment: Boolean(payload?.bill_attachment),
+      bill_attachment_id: payload?.bill_attachment?.attachment_id || "",
     },
   });
-
-  return { key, created_at: createdAt, updated_at: now };
-}
-
-async function persistDatabaseSafely(payload, leadId) {
-  try {
-    const stored = await upsertLeadToDatabase(payload, leadId);
-    return { ok: true, ...stored };
-  } catch (error) {
-    console.error("ECON Netlify Database lead write failed", error instanceof Error ? error.message : error);
-    return { ok: false };
-  }
+  return { key, created_at: createdAt, updated_at: now, created: !previous };
 }
 
 async function leadResponseWithMeta(request, body, leadId, payload) {
   const meta = await sendMetaLeadEvent({ request, body, leadId });
-  return json({ ...payload, meta_capi: meta.status }, 201);
+  return json({ ...payload, meta_capi: meta.status }, payload.created === false ? 200 : 201);
 }
 
 export default async (request) => {
@@ -126,71 +151,73 @@ export default async (request) => {
   try {
     const body = await readJson(request);
     if (JSON.stringify(body).length > MAX_LEAD_JSON_CHARS) return json({ detail: "lead_payload_too_large" }, 413);
-
     const problem = validateLead(body, privacyVersion);
     if (problem) return json({ detail: problem }, 400);
+
     const sessionId = safeSessionId(body.session_id);
     const leadId = leadIdForSession(sessionId);
+    const attachment = await verifiedBillAttachment(body, leadId);
+    const canonicalBody = attachment ? { ...body, bill_attachment: attachment } : { ...body, bill_attachment: undefined };
     const mode = env("ECON_CRM_MODE", "blobs").toLowerCase();
 
     if (mode === "webhook") {
-      await sendWebhook(body, leadId);
-      return leadResponseWithMeta(request, body, leadId, { ok: true, lead_id: leadId, adapter: "crm_webhook", persisted: true });
+      await sendWebhook(canonicalBody, leadId);
+      return leadResponseWithMeta(request, canonicalBody, leadId, {
+        ok: true, lead_id: leadId, adapter: "crm_webhook", persisted: true, created: true,
+      });
     }
 
     if (mode === "blobs") {
-      const stored = await persistLead(body, leadId);
-      return leadResponseWithMeta(request, body, leadId, {
+      const stored = await persistLeadBlob(canonicalBody, leadId);
+      return leadResponseWithMeta(request, canonicalBody, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs",
         persisted: true,
+        created: stored.created,
         stored_at: stored.updated_at,
+        attachment_linked: Boolean(attachment),
       });
     }
 
     if (mode === "dual") {
-      const blobStored = await persistLead(body, leadId);
-      const databaseStored = await persistDatabaseSafely(body, leadId);
-      return leadResponseWithMeta(request, body, leadId, {
+      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment);
+      const blobStored = await persistLeadBlob(canonicalBody, leadId);
+      return leadResponseWithMeta(request, canonicalBody, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs+netlify_database",
         persisted: true,
+        created: databaseStored.created,
+        duplicate_suppressed: !databaseStored.created,
         blob_persisted: true,
-        database_persisted: databaseStored.ok,
+        database_persisted: true,
+        attachment_linked: databaseStored.attachment_linked,
         stored_at: databaseStored.updated_at || blobStored.updated_at,
       });
     }
 
     if (mode === "database") {
-      const databaseStored = await persistDatabaseSafely(body, leadId);
-      if (databaseStored.ok) {
-        return leadResponseWithMeta(request, body, leadId, {
-          ok: true,
-          lead_id: leadId,
-          adapter: "netlify_database",
-          persisted: true,
-          database_persisted: true,
-          stored_at: databaseStored.updated_at,
-        });
-      }
-
-      const fallback = await persistLead(body, leadId);
-      return leadResponseWithMeta(request, body, leadId, {
+      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment);
+      return leadResponseWithMeta(request, canonicalBody, leadId, {
         ok: true,
         lead_id: leadId,
-        adapter: "netlify_blobs_fallback",
+        adapter: "netlify_database",
         persisted: true,
-        blob_persisted: true,
-        database_persisted: false,
-        stored_at: fallback.updated_at,
+        created: databaseStored.created,
+        duplicate_suppressed: !databaseStored.created,
+        database_persisted: true,
+        attachment_linked: databaseStored.attachment_linked,
+        stored_at: databaseStored.updated_at,
       });
     }
 
     return json({ detail: "crm_disabled" }, 503);
   } catch (error) {
-    return json({ detail: error instanceof Error ? error.message : "lead_failed" }, 500);
+    const detail = error instanceof Error ? error.message : "lead_failed";
+    console.error("ECON lead persistence failed", detail);
+    const clientError = detail.startsWith("bill_attachment_");
+    return json({ detail }, clientError ? 409 : 500);
   }
 };
 
@@ -199,4 +226,4 @@ export const config = {
   rateLimit: { windowLimit: 8, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
 
-export const __test = { validateLead, leadIdForSession, LEAD_STORE, MAX_LEAD_JSON_CHARS };
+export const __test = { validateLead, actualBillMode, verifiedBillAttachment, leadIdForSession, LEAD_STORE, MAX_LEAD_JSON_CHARS };
