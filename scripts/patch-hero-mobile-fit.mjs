@@ -5,7 +5,7 @@ let html = fs.readFileSync(file, 'utf8');
 const marker = 'HERO MOBILE FIT · one-screen · v1';
 
 if (!html.includes('HERO PNG · supplied asset · v1')) {
-  throw new Error('Mobile hero fit requires the supplied PNG integration first');
+  throw new Error('Mobile hero fit requires the supplied hero integration first');
 }
 if (!html.includes('class="intro-v2"')) {
   throw new Error('Mobile hero fit could not locate Hero V2');
@@ -37,8 +37,8 @@ const css = String.raw`
   .intro-copy{max-width:none;margin:7px 0 0;font-size:12.5px;line-height:1.28;color:#40523b;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 
   .intro-visual{margin-top:8px;border-radius:20px;box-shadow:0 10px 28px rgba(4,61,0,.065)}
-  .intro-visual-png{height:clamp(122px,20.5svh,156px);min-height:122px;background:#f7faef}
-  .intro-visual-png img{width:100%;height:100%;object-fit:cover;object-position:50% 51%}
+  .intro-visual-png{height:clamp(122px,20.5svh,156px);min-height:122px;background:#fff;overflow:hidden}
+  .intro-visual-png img{width:100%;height:100%;object-fit:contain;object-position:center;background:#fff}
 
   .intro-benefits{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px}
   .intro-benefit{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;min-height:52px;padding:6px 4px;border-radius:13px;text-align:center;box-shadow:none;background:#fff}
