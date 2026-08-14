@@ -1,0 +1,46 @@
+name: Import supplied hero v3
+
+on:
+  push:
+    branches:
+      - agent/hero-v3-clean
+    paths:
+      - .github/workflows/import-hero-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import-hero:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/hero-v3-clean
+          fetch-depth: 0
+
+      - name: Download supplied hero asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/assets/hero
+          curl -L --fail --retry 3 --retry-delay 2 \
+            'https://cdn-editing-temp.picsart.com/editing-temp/83f5c3bc-dfcf-4c7c-ad49-c422b52011a1.jpeg' \
+            -o public/assets/hero/econ-home-energy-v3.jpeg
+          test "$(stat -c%s public/assets/hero/econ-home-energy-v3.jpeg)" = "214020"
+          echo '3b071cbd8a690ef1bd10637cd3522fd26c926502b759d89b1463155c2bd45d7e  public/assets/hero/econ-home-energy-v3.jpeg' | sha256sum -c -
+
+      - name: Commit exact asset to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/assets/hero/econ-home-energy-v3.jpeg
+          if git diff --cached --quiet; then
+            echo 'Hero asset already present; nothing to commit.'
+            exit 0
+          fi
+          git commit -m 'Add supplied hero artwork'
+          git push origin HEAD:agent/hero-v3-clean
