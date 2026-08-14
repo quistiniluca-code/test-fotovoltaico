@@ -107,9 +107,9 @@ export default async (request) => {
           privacy_version: privacyVersion,
         },
       });
-      await store.setJSON(mKey, descriptor);
-      if (previous?.blob_key && previous.blob_key !== blobKey) await store.delete(previous.blob_key);
     }
+    await store.setJSON(mKey, descriptor);
+    if (!deduplicated && previous?.blob_key && previous.blob_key !== blobKey) await store.delete(previous.blob_key);
 
     return json({ ok: true, attachment: descriptor, deduplicated }, deduplicated ? 200 : 201);
   } catch (error) {
