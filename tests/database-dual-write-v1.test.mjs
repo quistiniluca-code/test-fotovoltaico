@@ -19,39 +19,38 @@ for (const marker of [
   'bill_summary JSONB NOT NULL',
   'commercial_fv_request BOOLEAN',
   'econ_fv_events_session_idx',
-]) {
-  assert.ok(migration.includes(marker), `Migration missing marker: ${marker}`);
-}
+]) assert.ok(migration.includes(marker), `Migration missing marker: ${marker}`);
 
 for (const marker of [
   'getDatabase',
+  'upsertLeadBundleToDatabase',
   'upsertLeadToDatabase',
   'insertEventToDatabase',
-  "ON CONFLICT (lead_id) DO UPDATE",
-  "ON CONFLICT (event_id) DO NOTHING",
-  "to_regclass('public.econ_fv_leads')",
-]) {
-  assert.ok(database.includes(marker), `Database adapter missing marker: ${marker}`);
-}
+  'pg_advisory_xact_lock',
+  'ON CONFLICT (lead_id) DO UPDATE',
+  'ON CONFLICT (lead_id, attachment_type) DO UPDATE',
+  "to_regclass('public.econ_fv_lead_attachments')",
+]) assert.ok(database.includes(marker), `Database adapter missing marker: ${marker}`);
 
 for (const marker of [
   'mode === "dual"',
   'netlify_blobs+netlify_database',
-  'database_persisted',
-  'persistLead(body, leadId)',
-  'persistDatabaseSafely(body, leadId)',
-]) {
-  assert.ok(leads.includes(marker), `Lead dual-write missing marker: ${marker}`);
-}
+  'database_persisted: true',
+  'upsertLeadBundleToDatabase(canonicalBody, leadId, attachment)',
+  'persistLeadBlob(canonicalBody, leadId)',
+  'duplicate_suppressed',
+  'verifiedBillAttachment',
+]) assert.ok(leads.includes(marker), `Lead persistence missing marker: ${marker}`);
 
 assert.ok(events.includes('insertEventToDatabase(payload, eventId)'));
 assert.ok(events.includes('getStore("econ-fv-events-v1")'));
-assert.ok(health.includes('database-dual-write-v1'));
+assert.ok(health.includes('lead-bill-archive-v1'));
 assert.ok(health.includes('database_ready'));
+assert.ok(health.includes('attachments: status.attachments_table'));
 assert.ok(health.includes('netlify_blobs+netlify_database'));
 
 assert.equal(databaseTest.finiteNumberOrNull('4200'), 4200);
 assert.equal(databaseTest.finiteNumberOrNull('not-a-number'), null);
 assert.equal(databaseTest.jsonValue({ a: 1 }), '{"a":1}');
 
-console.log('Netlify Database dual-write regression: PASS · schema/adapter/fallback/health');
+console.log('Netlify Database dual-write regression: PASS · strict transaction/idempotency/attachment registry/health');
