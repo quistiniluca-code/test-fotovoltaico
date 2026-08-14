@@ -5,7 +5,8 @@ import { safeSessionId, sanitizeEventDetail } from "./_shared/sanitize.js";
 import { insertEventToDatabase } from "./_shared/database.js";
 
 const ALLOWED_EVENTS = new Set([
-  "screen_view", "bill_upload_started", "bill_parse_success", "bill_parse_failed", "bill_data_confirmed",
+  "screen_view", "bill_upload_started", "bill_parse_success", "bill_parse_failed",
+  "bill_archive_success", "bill_archive_failed", "bill_data_confirmed",
   "address_selected", "address_confirmed", "lead_form_opened", "lead_completed", "lead_save_failed"
 ]);
 
