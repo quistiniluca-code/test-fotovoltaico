@@ -22,10 +22,11 @@ for (const token of required) {
   if (!html.includes(token)) throw new Error(`Mobile UI regression missing: ${token}`);
 }
 
-for (const token of ['GLOBAL MOBILE FIT · full-funnel one-screen · v1','HERO MOBILE FIT · one-screen · v1','/assets/hero/econ-home-energy.png','id="start" class="intro-cta"','id="leadSave" class="btn result-cta"','function economic(']) {
+for (const token of ['GLOBAL MOBILE FIT · full-funnel one-screen · v1','HERO MOBILE FIT · one-screen · v1','/assets/hero/econ-home-energy-v3.jpeg','id="start" class="intro-cta"','id="leadSave" class="btn result-cta"','function economic(']) {
   if (!html.includes(token)) throw new Error(`Preserved behavior missing: ${token}`);
 }
 
+if (html.includes('/assets/hero/econ-home-energy.png')) throw new Error('Stale hero asset remains');
 if (html.includes("content:'Continua  →'")) throw new Error('Legacy Continue spacing remains');
 if ((html.match(/content:'Continua →'/g) || []).length !== 1) throw new Error('Continue label must have exactly one generated text source');
 

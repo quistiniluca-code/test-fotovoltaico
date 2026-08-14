@@ -33,8 +33,11 @@ if (html.includes("content:'Continua  →'")) {
 if (!html.includes('HERO MOBILE FIT · one-screen · v1')) {
   throw new Error('Global mobile fit regression: hero-specific mobile fit was lost');
 }
-if (!html.includes('/assets/hero/econ-home-energy.png')) {
-  throw new Error('Global mobile fit regression: supplied hero PNG was lost');
+if (!html.includes('/assets/hero/econ-home-energy-v3.jpeg')) {
+  throw new Error('Global mobile fit regression: supplied hero V3 was lost');
+}
+if (html.includes('/assets/hero/econ-home-energy.png')) {
+  throw new Error('Global mobile fit regression: stale hero asset remains');
 }
 if (!html.includes('id="start" class="intro-cta"')) {
   throw new Error('Global mobile fit regression: hero CTA was lost');
