@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { createHash } from "node:crypto";
+import { env } from "./_shared/env.js";
 import { sameOriginRequest, json } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
 import {
@@ -46,7 +47,13 @@ export default async (request) => {
     const form = await request.formData();
     const sessionId = safeSessionId(form.get("session_id"));
     const file = form.get("file");
+    const privacyAcknowledged = String(form.get("privacy_acknowledged") || "") === "true";
+    const privacyVersion = String(form.get("privacy_version") || "").trim();
+    const expectedPrivacyVersion = String(env("ECON_PRIVACY_VERSION") || "").trim();
+
     if (!sessionId) return json({ detail: "invalid_session_id" }, 400);
+    if (!privacyAcknowledged) return json({ detail: "privacy_ack_required" }, 400);
+    if (!expectedPrivacyVersion || privacyVersion !== expectedPrivacyVersion) return json({ detail: "privacy_version_mismatch" }, 409);
     if (!file || typeof file.arrayBuffer !== "function") return json({ detail: "bill_file_required" }, 400);
 
     const size = Number(file.size || 0);
@@ -83,6 +90,7 @@ export default async (request) => {
       size_bytes: size,
       sha256,
       uploaded_at: uploadedAt,
+      privacy_version: privacyVersion,
     };
 
     const deduplicated = Boolean(sameDescriptor(previous, descriptor) && previousBlob);
@@ -96,6 +104,7 @@ export default async (request) => {
           size_bytes: size,
           sha256,
           uploaded_at: uploadedAt,
+          privacy_version: privacyVersion,
         },
       });
       await store.setJSON(mKey, descriptor);
