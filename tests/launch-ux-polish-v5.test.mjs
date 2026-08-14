@@ -46,8 +46,13 @@ for (const legacy of [
 if ((html.match(/https:\/\/wa\.me\/393783091137/g) || []).length !== 1) {
   throw new Error('Launch UX V5 regression: WhatsApp destination must exist exactly once');
 }
-if (!consentCss.includes('.econ-consent-settings')) {
-  throw new Error('Launch UX V5 regression: cookie settings control missing');
+
+const consentChip = '.econ-consent-settings{bottom:max(68px,calc(68px + env(safe-area-inset-bottom)));left:8px;min-height:32px;padding:5px 9px;font-size:10px;box-shadow:none;opacity:.92}';
+if (!consentCss.includes(consentChip)) {
+  throw new Error('Launch UX V5 regression: compact cookie settings control missing');
+}
+if (consentCss.includes('.econ-consent-settings{bottom:max(72px,calc(72px + env(safe-area-inset-bottom)));left:8px}')) {
+  throw new Error('Launch UX V5 regression: oversized mobile cookie settings control remains');
 }
 
-console.log('Launch UX polish V5 regression: PASS · journey, hierarchy, final action and disclosures preserved');
+console.log('Launch UX polish V5 regression: PASS · journey, hierarchy, final action, disclosures and cookie control preserved');
