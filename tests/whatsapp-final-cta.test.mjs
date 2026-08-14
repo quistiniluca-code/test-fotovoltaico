@@ -9,7 +9,8 @@ const required = [
   `href="${url}"`,
   'target="_blank"',
   'rel="noopener noreferrer"',
-  'aria-label="Scrivi a ECON su WhatsApp"',
+  "const whatsappAria=estimateMode?'Invia la bolletta a ECON su WhatsApp':'Scrivi a ECON su WhatsApp';",
+  'aria-label="\'+esc(whatsappAria)+\'"',
   'Scrivici su WhatsApp →',
   '.whatsapp-final-cta{display:flex',
   'background:var(--l)',
@@ -38,4 +39,4 @@ if (!html.includes('function economic(') || !html.includes('state.a.lead_id=j.le
   throw new Error('WhatsApp final CTA regression: core funnel/economic behavior changed unexpectedly');
 }
 
-console.log('WhatsApp final CTA regression: PASS · final result only · exact wa.me link');
+console.log('WhatsApp final CTA regression: PASS · final result only · exact wa.me link · contextual label');
