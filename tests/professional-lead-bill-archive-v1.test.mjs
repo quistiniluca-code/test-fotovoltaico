@@ -26,7 +26,7 @@ assert.equal(BILL_FILE_STORE,'econ-fv-bill-files-v1');
 assert.equal(billAttachmentIdForLead(leadId),`bill-${leadId}`);
 assert.equal(billBlobKey(leadId,'a'.repeat(64)),`lead/${leadId}/bill/${'a'.repeat(64)}`);
 
-assert.equal(attachmentTest.MAX_FILE_BYTES,20*1024*1024);
+assert.equal(attachmentTest.MAX_FILE_BYTES,4*1024*1024);
 assert.equal(attachmentTest.cleanFilename('../bolletta.pdf'),'.._bolletta.pdf');
 assert.equal(attachmentTest.inferredType('bill.pdf',''),'application/pdf');
 assert.equal(attachmentTest.inferredType('bill.jpg',''),'image/jpeg');
@@ -73,6 +73,7 @@ for(const marker of ['bill_archive_success','bill_archive_failed']) assert.ok(ev
 
 for(const marker of [
   'PROFESSIONAL LEAD + BILL ARCHIVE V1',
+  'BILL_ARCHIVE_MAX_BYTES=4*1024*1024',
   'billFile:null',
   'billAttachment:null',
   "archiveBillFile(state.billFile,state.cfg?.privacy_version||'')",
@@ -85,4 +86,4 @@ for(const marker of [
 
 assert.ok(!html.includes('state.billAttachment=await archiveBillFile(file)'), 'Bill must not be archived before privacy acknowledgement');
 
-console.log('Professional lead + bill archive V1: PASS · privacy gate / canonical Blob / DB trace / idempotency / double-submit guard');
+console.log('Professional lead + bill archive V1: PASS · privacy gate / canonical Blob / DB trace / idempotency / size guard / double-submit guard');
