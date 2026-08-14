@@ -13,6 +13,7 @@
     "patch:hero-mobile": "node scripts/patch-hero-mobile-fit.mjs",
     "patch:result-v2": "node scripts/patch-result-flow-v2.mjs && node -e \"const fs=require('fs');const p='public/index.html';let h=fs.readFileSync(p,'utf8');const a='go(24)}'+'if(n===24){',b='go(24)};'+'if(n===24){';if(!h.includes(a))throw Error('result handler boundary missing');fs.writeFileSync(p,h.replace(a,b));\"",
     "patch:economic-v3": "node scripts/patch-economic-commercial-v3.mjs",
+    "patch:whatsapp-final": "node scripts/patch-whatsapp-final-cta.mjs",
     "patch:remove-confidence": "node scripts/patch-remove-confidence.mjs",
     "patch:address-v2": "node scripts/patch-address-flow-v2.mjs",
     "patch:consent-v1": "node scripts/patch-consent-v1.mjs",
@@ -24,6 +25,7 @@
     "test:lead-storage": "node tests/lead-storage-v18.test.mjs",
     "test:result-v2": "node tests/result-flow-v2.test.mjs",
     "test:economic-v3": "node tests/commercial-economic-v3.test.mjs",
+    "test:whatsapp-final": "node tests/whatsapp-final-cta.test.mjs",
     "test:scoped-flow": "node tests/scoped-flow-regression.test.mjs",
     "test:address-v2": "node tests/address-flow-v2.test.mjs",
     "test:consent-v1": "node tests/consent-mode-v1.test.mjs",
@@ -35,7 +37,7 @@
     "test:mobile-viewport-v2": "node tests/mobile-viewport-fit-v2.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run patch:mobile-ui-v4 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:database-v1 && npm run test:hero-asset-v3 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:whatsapp-final && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run patch:mobile-ui-v4 && npm run test:stream-compat && npm run test:bill-parser && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:whatsapp-final && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:database-v1 && npm run test:hero-asset-v3 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {
