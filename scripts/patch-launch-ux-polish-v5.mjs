@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 
 const file = 'public/index.html';
+const consentFile = 'public/assets/consent-manager.css';
 let html = fs.readFileSync(file, 'utf8');
+let consentCss = fs.readFileSync(consentFile, 'utf8');
 
 const marker = 'LAUNCH UX POLISH V5 · final visual + journey';
 
@@ -71,6 +73,11 @@ const css = String.raw`
 if (!html.includes('</style>')) throw new Error('Could not locate style closing tag for launch UX polish V5');
 html = html.replace('</style>', `${css}\n</style>`);
 
+const oldConsentChip = '.econ-consent-settings{bottom:max(72px,calc(72px + env(safe-area-inset-bottom)));left:8px}';
+const newConsentChip = '.econ-consent-settings{bottom:max(68px,calc(68px + env(safe-area-inset-bottom)));left:8px;min-height:32px;padding:5px 9px;font-size:10px;box-shadow:none;opacity:.92}';
+if (!consentCss.includes(oldConsentChip)) throw new Error('Could not locate mobile cookie-settings chip');
+consentCss = consentCss.replace(oldConsentChip, newConsentChip);
+
 for (const required of [
   'ECON_JOURNEY_STEPS=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,17,18,24,25,26,27,28]',
   'function journeyProgress(n)',
@@ -84,6 +91,8 @@ for (const required of [
 ]) {
   if (!html.includes(required)) throw new Error(`Launch UX polish V5 marker missing: ${required}`);
 }
+if (!consentCss.includes(newConsentChip)) throw new Error('Launch UX polish V5 cookie-settings polish missing');
 
 fs.writeFileSync(file, html);
-console.log('Launch UX polish V5: PASS · truthful progress · four live phases · terminal result · readable offer terms');
+fs.writeFileSync(consentFile, consentCss);
+console.log('Launch UX polish V5: PASS · truthful progress · live phases · terminal result · stronger typography · quieter cookie control');
