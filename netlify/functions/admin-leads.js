@@ -25,24 +25,18 @@ function sha256Hex(value) {
 function authorized(request) {
   const supplied = tokenFromRequest(request);
   const expected = env("ECON_ADMIN_TOKEN");
-
   if (expected && expected.length >= 24) {
     if (!secureEqual(supplied, expected)) return { ok: false, status: 401, detail: "unauthorized" };
     return { ok: true, mode: "env_token" };
   }
-
   const expectedDigest = String(env("ECON_ADMIN_AUTH_DIGEST") || ADMIN_TOKEN_SHA256_FALLBACK).trim().toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(expectedDigest)) {
-    return { ok: false, status: 503, detail: "admin_token_not_configured" };
-  }
-  if (!supplied || !secureEqual(sha256Hex(supplied), expectedDigest)) {
-    return { ok: false, status: 401, detail: "unauthorized" };
-  }
+  if (!/^[a-f0-9]{64}$/.test(expectedDigest)) return { ok: false, status: 503, detail: "admin_token_not_configured" };
+  if (!supplied || !secureEqual(sha256Hex(supplied), expectedDigest)) return { ok: false, status: 401, detail: "unauthorized" };
   return { ok: true, mode: "sha256_digest" };
 }
 
 function normalizeRecord(key, value, metadata) {
-  if (value?.schema === "econ.lead.record.v1" && value?.lead) return value;
+  if (/^econ\.lead\.record\.v[12]$/.test(String(value?.schema || "")) && value?.lead) return value;
   const leadId = String(key).split("/").pop() || "";
   return {
     schema: "econ.lead.record.legacy",
@@ -59,6 +53,7 @@ function normalizeRecord(key, value, metadata) {
 
 function summary(record) {
   const lead = record?.lead || {};
+  const attachment = lead?.bill_attachment || null;
   return {
     lead_id: record?.lead_id || null,
     created_at: record?.server?.created_at || null,
@@ -74,6 +69,13 @@ function summary(record) {
     annual_kwh: lead?.bill_summary?.annual_kwh ?? null,
     annual_spend: lead?.bill_summary?.annual_spend ?? null,
     privacy_version: lead?.privacy?.version || null,
+    bill_file_stored: Boolean(attachment?.attachment_id),
+    bill_attachment_id: attachment?.attachment_id || null,
+    bill_filename: attachment?.original_filename || null,
+    bill_content_type: attachment?.content_type || null,
+    bill_size_bytes: attachment?.size_bytes ?? null,
+    bill_sha256: attachment?.sha256 || null,
+    bill_uploaded_at: attachment?.uploaded_at || null,
   };
 }
 
@@ -86,6 +88,7 @@ function toCsv(rows) {
   const columns = [
     "lead_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
     "commercial_fv_request", "address", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
+    "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
   ];
   return [columns.join(","), ...rows.map(row => columns.map(key => csvCell(row[key])).join(","))].join("\n");
 }
@@ -102,10 +105,9 @@ export default async (request) => {
     const full = url.searchParams.get("detail") === "full";
     const format = String(url.searchParams.get("format") || "json").toLowerCase();
 
-    const store = getStore(LEAD_STORE);
+    const store = getStore(LEAD_STORE, { consistency: "strong" });
     const { blobs } = await store.list({ prefix: "lead/" });
     const records = [];
-
     for (const blob of blobs) {
       try {
         const [value, metadata] = await Promise.all([
@@ -114,7 +116,7 @@ export default async (request) => {
         ]);
         if (value) records.push(normalizeRecord(blob.key, value, metadata));
       } catch {
-        // Keep one malformed entry from blocking access to the remaining leads.
+        // One malformed record must not block access to the remaining leads.
       }
     }
 

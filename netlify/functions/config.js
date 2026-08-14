@@ -18,18 +18,28 @@ export default async () => {
   const googleAdsConversionLabel = publicTrackingId("ECON_GOOGLE_ADS_CONVERSION_LABEL", /^[A-Z0-9_-]{6,120}$/i);
   const metaPixelId = publicTrackingId("ECON_META_PIXEL_ID", /^\d{5,25}$/);
   const trackingConfigured = Boolean(googleAnalyticsId || googleAdsId || metaPixelId);
+  const leadStorage = crmMode === "blobs"
+    ? "netlify_blobs"
+    : crmMode === "dual"
+      ? "netlify_blobs+netlify_database"
+      : crmMode === "database"
+        ? "netlify_database"
+        : crmMode === "webhook"
+          ? "crm_webhook"
+          : "disabled";
 
-  // Netlify applies updated function environment variables on a new deploy.
   return json({
-    version: "1.8-consent-ready",
+    version: "1.8-professional-archive-v1",
     privacy_url: privacyReady ? privacyUrl : null,
     privacy_version: privacyReady ? privacyVersion : null,
     privacy_ready: privacyReady,
-    bill_file_stored: false,
+    bill_file_stored: true,
+    bill_file_storage: "netlify_blobs",
+    bill_attachment_endpoint: "/api/bill-attachments",
     bill_parser_mode: "browser-local",
     bill_parser_external_service: false,
     lead_submission_endpoint: "/api/leads",
-    lead_storage: crmMode === "blobs" ? "netlify_blobs" : crmMode === "webhook" ? "crm_webhook" : "disabled",
+    lead_storage: leadStorage,
     crm_connected: crmMode === "webhook" && Boolean(env("ECON_CRM_WEBHOOK_URL")),
     crm_mode: crmMode,
     address_autocomplete: geocoderProvider !== "disabled",
