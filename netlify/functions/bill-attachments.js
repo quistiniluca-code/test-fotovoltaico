@@ -11,6 +11,8 @@ import {
   leadIdForSession,
 } from "./_shared/lead-identity.js";
 
+const BILL_STORE_CONTRACT = "econ-fv-bill-files-v1";
+if (BILL_FILE_STORE !== BILL_STORE_CONTRACT) throw new Error("bill_store_contract_mismatch");
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 const MANIFEST_SUFFIX = "bill/manifest";
