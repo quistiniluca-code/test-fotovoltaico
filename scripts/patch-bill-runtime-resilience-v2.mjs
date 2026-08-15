@@ -106,9 +106,9 @@ async function createOcrWorker(onProgress, context = {}) {
   const origin = window.location.origin;
   try {
     return await createWorker('ita', 1, {
-      workerPath: `${origin}/vendor/tesseract/worker.min.js`,
-      langPath: `${origin}/vendor/tessdata`,
-      corePath: `${origin}/vendor/tesseract-core`,
+      workerPath: origin + '/vendor/tesseract/worker.min.js',
+      langPath: origin + '/vendor/tessdata',
+      corePath: origin + '/vendor/tesseract-core',
       logger: m => {
         if (m?.status === 'recognizing text') {
           const pct = Math.max(0, Math.min(100, Math.round((m.progress || 0) * 100)));
