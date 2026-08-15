@@ -134,9 +134,13 @@ const resilientUpload=String.raw`async function uploadBill(file){
 `;
 html=html.slice(0,uploadStart)+helper+'\n'+resilientUpload+'\n'+html.slice(uploadEnd);
 
-const chooseOld="const chooseMode=(mode)=>{resetBillBaseline();state.a.bill_flow_mode=mode;track('bill_path_selected',{mode});render()};";
+const chooseCandidates=[
+  "const chooseMode=(mode)=>{state.a.bill_flow_mode=mode;track('bill_path_selected',{mode});render()};",
+  "const chooseMode=(mode)=>{resetBillBaseline();state.a.bill_flow_mode=mode;track('bill_path_selected',{mode});render()};",
+];
+const chooseOld=chooseCandidates.find(candidate=>html.includes(candidate));
 const chooseNew="const chooseMode=(mode)=>{const retainFailed=mode==='estimate'&&state.billFile&&state.billProcessing?.parse_status==='parse_failed';const retainedFile=retainFailed?state.billFile:null,retainedProcessing=retainFailed?state.billProcessing:null;resetBillBaseline();state.billFile=retainedFile;state.billAttachment=null;state.billProcessing=retainedProcessing;if(!retainFailed){delete state.a.bill_document_selected;delete state.a.bill_parse_status}state.a.bill_flow_mode=mode;track('bill_path_selected',{mode,retained_failed_document:Boolean(retainFailed)});render()};";
-if(!html.includes(chooseOld))throw new Error('Bill path mode handler not found');
+if(!chooseOld)throw new Error('Bill path mode handler not found');
 html=html.replace(chooseOld,chooseNew);
 
 const confirmationOld="state.billConfirmed=true;track('bill_data_confirmed');render()";
