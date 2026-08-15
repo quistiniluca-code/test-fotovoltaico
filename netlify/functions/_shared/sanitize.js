@@ -25,3 +25,8 @@ export function safeSessionId(value) {
   const s = String(value ?? "").trim();
   return /^[A-Za-z0-9._:-]{8,160}$/.test(s) ? s : "";
 }
+
+export function safeRequestId(value) {
+  const s = String(value ?? "").trim();
+  return /^[A-Za-z0-9._:-]{8,180}$/.test(s) ? s : "";
+}
