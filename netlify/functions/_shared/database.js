@@ -1,4 +1,5 @@
 import { getDatabase } from "@netlify/database";
+import { normalizeBillProcessing } from "./bill-processing.js";
 
 let databaseInstance = null;
 
@@ -39,6 +40,19 @@ function leadValues(payload, leadId) {
     answers: jsonValue(answers),
     bill: jsonValue(bill),
     payload: jsonValue(payload),
+  };
+}
+
+function attachmentProcessingValues(payload, attachment) {
+  const processing = normalizeBillProcessing(attachment?.processing ?? payload?.bill_processing);
+  return {
+    processing,
+    parseStatus: processing.parse_status,
+    parserMode: processing.parser_mode,
+    parserVersion: processing.parser_version,
+    dataMode: processing.data_mode,
+    dataConfirmed: processing.data_confirmed,
+    parseErrorCode: processing.error_code,
   };
 }
 
@@ -107,11 +121,17 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
     ]);
 
     if (attachment) {
+      const p = attachmentProcessingValues(payload, attachment);
       await client.query(`
         INSERT INTO econ_fv_lead_attachments (
           attachment_id, lead_id, attachment_type, blob_store, blob_key,
-          original_filename, content_type, size_bytes, sha256, uploaded_at, linked_at, metadata
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11::jsonb)
+          original_filename, content_type, size_bytes, sha256, uploaded_at, linked_at,
+          parse_status, parser_mode, parser_version, data_mode, data_confirmed,
+          parse_error_code, processing, metadata
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),
+          $11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb
+        )
         ON CONFLICT (lead_id, attachment_type) DO UPDATE SET
           attachment_id = EXCLUDED.attachment_id,
           blob_store = EXCLUDED.blob_store,
@@ -122,6 +142,13 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
           sha256 = EXCLUDED.sha256,
           uploaded_at = EXCLUDED.uploaded_at,
           linked_at = NOW(),
+          parse_status = EXCLUDED.parse_status,
+          parser_mode = EXCLUDED.parser_mode,
+          parser_version = EXCLUDED.parser_version,
+          data_mode = EXCLUDED.data_mode,
+          data_confirmed = EXCLUDED.data_confirmed,
+          parse_error_code = EXCLUDED.parse_error_code,
+          processing = EXCLUDED.processing,
           metadata = EXCLUDED.metadata
       `, [
         attachment.attachment_id,
@@ -134,7 +161,17 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
         attachment.size_bytes,
         attachment.sha256,
         attachment.uploaded_at,
-        jsonValue({ schema: attachment.schema || "econ.bill.attachment.v1" }),
+        p.parseStatus,
+        p.parserMode,
+        p.parserVersion,
+        p.dataMode,
+        p.dataConfirmed,
+        p.parseErrorCode,
+        jsonValue(p.processing),
+        jsonValue({
+          schema: attachment.schema || "econ.bill.attachment.v1",
+          privacy_version: attachment.privacy_version || payload?.privacy?.version || null,
+        }),
       ]);
     }
 
@@ -175,4 +212,4 @@ export async function insertEventToDatabase(payload, eventId) {
   return { event_id: eventId };
 }
 
-export const __test = { finiteNumberOrNull, jsonValue, leadValues };
+export const __test = { finiteNumberOrNull, jsonValue, leadValues, attachmentProcessingValues };
