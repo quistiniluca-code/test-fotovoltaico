@@ -29,17 +29,21 @@ export default async () => {
           : "disabled";
 
   return json({
-    version: "1.8-professional-archive-v1",
+    version: "1.8-bill-resilience-v2",
     privacy_url: privacyReady ? privacyUrl : null,
     privacy_version: privacyReady ? privacyVersion : null,
     privacy_ready: privacyReady,
     bill_file_stored: true,
     bill_file_storage: "netlify_blobs",
     bill_attachment_endpoint: "/api/bill-attachments",
+    bill_max_file_bytes: 4 * 1024 * 1024,
     bill_parser_mode: "browser-local",
+    bill_parser_version: "econ-bill-parser-v2.0",
     bill_parser_external_service: false,
+    bill_archive_on_parse_failure: true,
     lead_submission_endpoint: "/api/leads",
     lead_storage: leadStorage,
+    nonproduction_blob_scope: "deploy",
     crm_connected: crmMode === "webhook" && Boolean(env("ECON_CRM_WEBHOOK_URL")),
     crm_mode: crmMode,
     address_autocomplete: geocoderProvider !== "disabled",
