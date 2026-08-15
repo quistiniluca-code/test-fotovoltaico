@@ -1,7 +1,7 @@
-import { getStore } from "@netlify/blobs";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
+import { dataStore } from "./_shared/blob-store.js";
 
 const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
 
@@ -32,18 +32,23 @@ function authorized(request) {
 
 const STAGES = [
   ["Test avviato", 0],
-  ["Bolletta caricata", "bill_upload_started"],
+  ["Bolletta selezionata", "bill_upload_started"],
   ["Bolletta letta", "bill_parse_success"],
   ["Dati confermati", "bill_data_confirmed"],
+  ["Bolletta archiviata", "bill_archive_success"],
   ["Lead form", "lead_form_opened"],
   ["Lead completato", "lead_completed"],
 ];
+
+function percentage(part, total) {
+  return total ? Math.round((part / total) * 1000) / 10 : 0;
+}
 
 export default async (request) => {
   if (request.method !== "GET") return json({ detail: "method_not_allowed" }, 405);
   if (!authorized(request)) return json({ detail: "unauthorized" }, 401);
 
-  const store = getStore("econ-fv-events-v1");
+  const store = dataStore("econ-fv-events-v1");
   const { blobs } = await store.list();
   const events = [];
   for (const item of blobs.slice(-5000)) {
@@ -65,8 +70,9 @@ export default async (request) => {
     for (const rows of sessions.values()) {
       if (typeof marker === "number" ? hasScreen(rows, marker) : hasEvent(rows, marker)) count++;
     }
-    return { stage, sessions: count, rate_from_start: sessionCount ? Math.round((count / sessionCount) * 1000) / 10 : 0 };
+    return { stage, sessions: count, rate_from_start: percentage(count, sessionCount) };
   });
+
   let commercial = 0;
   const dropoff = {};
   for (const rows of sessions.values()) {
@@ -77,14 +83,31 @@ export default async (request) => {
       dropoff[String(max)] = (dropoff[String(max)] || 0) + 1;
     }
   }
+
+  const countEvent = name => events.filter(event => event.event === name).length;
+  const billAttempts = countEvent("bill_upload_started");
+  const billParsed = countEvent("bill_parse_success");
+  const billParseFailed = countEvent("bill_parse_failed");
+  const billArchived = countEvent("bill_archive_success");
+  const billArchiveFailed = countEvent("bill_archive_failed");
+
   return json({
-    version: "1.8-secure",
+    version: "1.8-bill-resilience-v2",
     sessions: sessionCount,
     funnel,
     commercial_requests: commercial,
     dropoff_last_screen: dropoff,
     crm_mode: env("ECON_CRM_MODE", "blobs"),
     event_count: events.length,
+    bill_pipeline: {
+      upload_attempts: billAttempts,
+      parse_success: billParsed,
+      parse_failed: billParseFailed,
+      archive_success: billArchived,
+      archive_failed: billArchiveFailed,
+      parse_success_rate: percentage(billParsed, billAttempts),
+      archive_success_rate: percentage(billArchived, billAttempts),
+    },
   });
 };
 
@@ -93,4 +116,4 @@ export const config = {
   rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
 
-export const __test = { authorized, secureEqual, sha256Hex, ADMIN_TOKEN_SHA256_FALLBACK };
+export const __test = { authorized, secureEqual, sha256Hex, percentage, ADMIN_TOKEN_SHA256_FALLBACK };

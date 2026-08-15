@@ -1,8 +1,9 @@
-import { getStore } from "@netlify/blobs";
 import { createHash } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { sameOriginRequest, json } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
+import { dataStore } from "./_shared/blob-store.js";
+import { normalizeBillProcessing } from "./_shared/bill-processing.js";
 import {
   BILL_ATTACHMENT_TYPE,
   BILL_FILE_STORE,
@@ -12,10 +13,14 @@ import {
 } from "./_shared/lead-identity.js";
 
 const BILL_STORE_CONTRACT = "econ-fv-bill-files-v1";
-if (BILL_FILE_STORE !== BILL_STORE_CONTRACT) throw new Error("bill_store_contract_mismatch");
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_PROCESSING_JSON_CHARS = 2000;
 const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 const MANIFEST_SUFFIX = "bill/manifest";
+
+function assertBillStoreContract() {
+  if (BILL_FILE_STORE !== BILL_STORE_CONTRACT) throw new Error("bill_store_contract_mismatch");
+}
 
 function cleanFilename(value) {
   const raw = String(value || "bolletta").replace(/[\\/\0\r\n]/g, "_").trim();
@@ -41,17 +46,31 @@ function sameDescriptor(a, b) {
   return Boolean(a && b && a.attachment_id === b.attachment_id && a.sha256 === b.sha256 && a.blob_key === b.blob_key);
 }
 
+function processingFromForm(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return normalizeBillProcessing();
+  if (raw.length > MAX_PROCESSING_JSON_CHARS) throw new Error("bill_processing_too_large");
+  try {
+    return normalizeBillProcessing(JSON.parse(raw));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error("invalid_bill_processing");
+    throw error;
+  }
+}
+
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
 
   try {
+    assertBillStoreContract();
     const form = await request.formData();
     const sessionId = safeSessionId(form.get("session_id"));
     const file = form.get("file");
     const privacyAcknowledged = String(form.get("privacy_acknowledged") || "") === "true";
     const privacyVersion = String(form.get("privacy_version") || "").trim();
     const expectedPrivacyVersion = String(env("ECON_PRIVACY_VERSION") || "").trim();
+    const processing = processingFromForm(form.get("processing"));
 
     if (!sessionId) return json({ detail: "invalid_session_id" }, 400);
     if (!privacyAcknowledged) return json({ detail: "privacy_ack_required" }, 400);
@@ -71,7 +90,7 @@ export default async (request) => {
     const leadId = leadIdForSession(sessionId);
     const attachmentId = billAttachmentIdForLead(leadId);
     const blobKey = billBlobKey(leadId, sha256);
-    const store = getStore(BILL_FILE_STORE, { consistency: "strong" });
+    const store = dataStore(BILL_FILE_STORE, { consistency: "strong" });
     const mKey = manifestKey(leadId);
     const previous = await store.get(mKey, { type: "json" });
     const previousBlob = previous?.blob_key ? await store.getMetadata(previous.blob_key) : null;
@@ -93,6 +112,7 @@ export default async (request) => {
       sha256,
       uploaded_at: uploadedAt,
       privacy_version: privacyVersion,
+      processing,
     };
 
     const deduplicated = Boolean(sameDescriptor(previous, descriptor) && previousBlob);
@@ -115,8 +135,10 @@ export default async (request) => {
 
     return json({ ok: true, attachment: descriptor, deduplicated }, deduplicated ? 200 : 201);
   } catch (error) {
-    console.error("ECON bill archive failed", error instanceof Error ? error.message : error);
-    return json({ detail: "bill_archive_failed" }, 500);
+    const detail = error instanceof Error ? error.message : "bill_archive_failed";
+    console.error("ECON bill archive failed", detail);
+    const clientError = ["bill_processing_too_large", "invalid_bill_processing"].includes(detail);
+    return json({ detail: clientError ? detail : "bill_archive_failed" }, clientError ? 400 : 500);
   }
 };
 
@@ -125,4 +147,12 @@ export const config = {
   rateLimit: { windowLimit: 12, windowSize: 60, aggregateBy: ["ip", "domain"] },
 };
 
-export const __test = { MAX_FILE_BYTES, cleanFilename, inferredType, manifestKey, sameDescriptor };
+export const __test = {
+  MAX_FILE_BYTES,
+  MAX_PROCESSING_JSON_CHARS,
+  cleanFilename,
+  inferredType,
+  manifestKey,
+  sameDescriptor,
+  processingFromForm,
+};

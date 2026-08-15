@@ -13,7 +13,7 @@ for (const marker of [
   '<script type="module" src="/assets/consent-manager.js"></script>',
   'tracking_consent:{analytics:',
   'fireLeadConversion?.(state.a.lead_id)',
-  'j.ok&&j.persisted&&state.a.lead_id',
+  'j.ok&&j.persisted&&j.created!==false&&state.a.lead_id',
 ]) {
   if (!html.includes(marker)) throw new Error(`Consent/conversion marker missing from built HTML: ${marker}`);
 }
@@ -68,7 +68,7 @@ for (const marker of [
   if (!config.includes(marker)) throw new Error(`Runtime tracking config missing marker: ${marker}`);
 }
 
-for (const marker of ['sendMetaLeadEvent', 'meta_capi: meta.status']) {
+for (const marker of ['sendMetaLeadEvent', 'meta_capi: meta.status', 'skipped_existing_lead']) {
   if (!leads.includes(marker)) throw new Error(`Lead endpoint missing Meta CAPI marker: ${marker}`);
 }
 for (const marker of [
@@ -100,4 +100,4 @@ if (!css.includes('.econ-consent-actions') || !css.includes('.econ-consent-setti
   throw new Error('Consent UI styles incomplete');
 }
 
-console.log('Consent mode V1 regression: PASS · opt-in defaults · Google lead conversion · Meta Pixel/CAPI dedupe ID');
+console.log('Consent mode V1 regression: PASS · opt-in defaults · new-lead conversion gate · Meta Pixel/CAPI dedupe ID');

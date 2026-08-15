@@ -1,7 +1,8 @@
-import { getStore } from "@netlify/blobs";
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId } from "./_shared/sanitize.js";
+import { dataStore } from "./_shared/blob-store.js";
+import { normalizeBillProcessing } from "./_shared/bill-processing.js";
 import { upsertLeadBundleToDatabase } from "./_shared/database.js";
 import { sendMetaLeadEvent } from "./_shared/meta-capi.js";
 import {
@@ -43,7 +44,7 @@ async function verifiedBillAttachment(body, leadId) {
   if (!supplied && !actualBillMode(body)) return null;
   if (!supplied) throw new Error("bill_attachment_required");
 
-  const store = getStore(BILL_FILE_STORE, { consistency: "strong" });
+  const store = dataStore(BILL_FILE_STORE, { consistency: "strong" });
   const manifest = await store.get(`lead/${leadId}/bill/manifest`, { type: "json" });
   if (!manifest) throw new Error("bill_attachment_manifest_missing");
 
@@ -54,6 +55,7 @@ async function verifiedBillAttachment(body, leadId) {
     manifest.lead_id === leadId &&
     manifest.attachment_type === BILL_ATTACHMENT_TYPE &&
     manifest.blob_store === BILL_FILE_STORE &&
+    manifest.privacy_version === body?.privacy?.version &&
     supplied.attachment_id === manifest.attachment_id &&
     supplied.sha256 === manifest.sha256 &&
     supplied.blob_key === manifest.blob_key;
@@ -62,10 +64,16 @@ async function verifiedBillAttachment(body, leadId) {
   const metadata = await store.getMetadata(manifest.blob_key);
   if (!metadata) throw new Error("bill_attachment_blob_missing");
   const m = metadata.metadata || {};
-  if (m.sha256 !== manifest.sha256 || m.lead_id !== leadId || Number(m.size_bytes) !== Number(manifest.size_bytes)) {
+  if (
+    m.sha256 !== manifest.sha256 ||
+    m.lead_id !== leadId ||
+    m.attachment_id !== expectedId ||
+    m.content_type !== manifest.content_type ||
+    Number(m.size_bytes) !== Number(manifest.size_bytes)
+  ) {
     throw new Error("bill_attachment_integrity_mismatch");
   }
-  return manifest;
+  return { ...manifest, processing: normalizeBillProcessing(manifest.processing) };
 }
 
 async function sendWebhook(payload, leadId) {
@@ -96,7 +104,7 @@ async function sendWebhook(payload, leadId) {
 }
 
 async function persistLeadBlob(payload, leadId) {
-  const store = getStore(LEAD_STORE, { consistency: "strong" });
+  const store = dataStore(LEAD_STORE, { consistency: "strong" });
   const key = `lead/${leadId}`;
   const now = new Date().toISOString();
   let previous = null;
@@ -107,6 +115,7 @@ async function persistLeadBlob(payload, leadId) {
   }
 
   const createdAt = previous?.server?.created_at || previous?.created_at || now;
+  const processing = normalizeBillProcessing(payload?.bill_processing);
   const record = {
     schema: "econ.lead.record.v2",
     lead_id: leadId,
@@ -128,13 +137,17 @@ async function persistLeadBlob(payload, leadId) {
       source: "econ-fv-test",
       has_bill_attachment: Boolean(payload?.bill_attachment),
       bill_attachment_id: payload?.bill_attachment?.attachment_id || "",
+      bill_parse_status: processing.parse_status,
+      bill_data_mode: processing.data_mode,
     },
   });
   return { key, created_at: createdAt, updated_at: now, created: !previous };
 }
 
 async function leadResponseWithMeta(request, body, leadId, payload) {
-  const meta = await sendMetaLeadEvent({ request, body, leadId });
+  const meta = payload.created === false
+    ? { status: "skipped_existing_lead" }
+    : await sendMetaLeadEvent({ request, body, leadId });
   return json({ ...payload, meta_capi: meta.status }, payload.created === false ? 200 : 201);
 }
 
@@ -157,7 +170,14 @@ export default async (request) => {
     const sessionId = safeSessionId(body.session_id);
     const leadId = leadIdForSession(sessionId);
     const attachment = await verifiedBillAttachment(body, leadId);
-    const canonicalBody = attachment ? { ...body, bill_attachment: attachment } : { ...body, bill_attachment: undefined };
+    const processing = attachment?.processing
+      ? normalizeBillProcessing(attachment.processing)
+      : normalizeBillProcessing(body?.bill_processing);
+    const canonicalBody = {
+      ...body,
+      bill_attachment: attachment || undefined,
+      bill_processing: processing,
+    };
     const mode = env("ECON_CRM_MODE", "blobs").toLowerCase();
 
     if (mode === "webhook") {
@@ -175,6 +195,7 @@ export default async (request) => {
         adapter: "netlify_blobs",
         persisted: true,
         created: stored.created,
+        duplicate_suppressed: !stored.created,
         stored_at: stored.updated_at,
         attachment_linked: Boolean(attachment),
       });

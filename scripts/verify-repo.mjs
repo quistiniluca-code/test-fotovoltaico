@@ -7,7 +7,7 @@ const required = [
   'public/assets/bill-parser.js',
   'public/vendor/pdfjs/pdf.mjs',
   'public/vendor/pdfjs/pdf.worker.mjs',
-  'public/vendor/tesseract/tesseract.esm.min.js',
+  'public/vendor/tesseract/tesseract.min.js',
   'public/vendor/tesseract/worker.min.js',
   'public/vendor/tessdata/ita.traineddata.gz',
   'netlify.toml',
@@ -19,11 +19,16 @@ const required = [
   'netlify/functions/analytics-summary.js',
   'netlify/functions/events.js',
   'netlify/functions/_shared/lead-identity.js',
+  'netlify/functions/_shared/blob-store.js',
+  'netlify/functions/_shared/bill-processing.js',
   'netlify/database/migrations/20260814201500_create-lead-attachments/migration.sql',
+  'netlify/database/migrations/20260815112500_add-bill-processing-trace/migration.sql',
+  'scripts/patch-bill-runtime-resilience-v2.mjs',
   'scripts/patch-remove-confidence.mjs',
   'scripts/patch-address-flow-v2.mjs',
   'scripts/patch-professional-archive-v1.mjs',
   'tests/lead-storage-v18.test.mjs',
+  'tests/bill-ocr-runtime-v2.test.mjs',
   'tests/professional-lead-bill-archive-v1.test.mjs',
   'tests/result-flow-v2.test.mjs',
   'tests/scoped-flow-regression.test.mjs',
@@ -52,8 +57,9 @@ for (const marker of [
   'ADDRESS FLOW V2 · OCR-first + manual fallback', 'function parseSupplyAddress(rawValue)',
   'id="street"', 'id="civic"', 'id="city"', 'id="province"',
   'Indirizzo precompilato dalla bolletta', 'Indirizzo non rilevato dalla bolletta',
-  'PROFESSIONAL LEAD + BILL ARCHIVE V1', 'bill_attachment:state.billAttachment||undefined',
-  'privacy_acknowledged', 'state.leadSaving=true'
+  'PROFESSIONAL LEAD + BILL ARCHIVE V2', 'bill_attachment:state.billAttachment||undefined',
+  'bill_processing:state.billProcessing||undefined', 'privacy_acknowledged', 'state.leadSaving=true',
+  'file_retained:true', 'j.created!==false',
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -66,6 +72,9 @@ if (html.includes("supply_address:billVal('supply_address')")) {
 }
 if (html.includes('state.billAttachment=await archiveBillFile(file)')) {
   throw new Error('Bill file must not be archived before privacy acknowledgement');
+}
+if (html.includes("if(state.a.bill_data_mode==='bill'&&!state.billAttachment)")) {
+  throw new Error('Bill archival must not depend on successful parsing');
 }
 for (const marker of [
   'Quanto sei sicuro della tua <span class="accent">scelta</span>?',
@@ -81,11 +90,26 @@ for (const marker of ['id="addressSearch"', 'id="postal"', "fetch('/api/address/
   if (html.includes(marker)) throw new Error(`Legacy address flow marker still present: ${marker}`);
 }
 
+const billParser = fs.readFileSync('public/assets/bill-parser.js', 'utf8');
+for (const marker of [
+  'BILL OCR RUNTIME RESILIENCE V2',
+  'const MAX_FILE_MB = 4',
+  "script.src = '/vendor/tesseract/tesseract.min.js'",
+  'currentTesseractApi', 'ocr_engine_unavailable', 'ocr_runtime_load_failed',
+  "parser_version: BILL_PARSER_VERSION",
+]) {
+  if (!billParser.includes(marker)) throw new Error(`Bill parser resilience marker missing: ${marker}`);
+}
+if (billParser.includes("import('/vendor/tesseract/tesseract.esm.min.js')")) {
+  throw new Error('Fragile Tesseract ESM import still referenced by bill parser');
+}
+
 const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
 for (const marker of [
   'econ-fv-leads-prelive', 'econ.lead.record.v2', 'persisted: true', 'server: {',
   'privacy_not_configured', 'privacy_version_mismatch', 'MAX_LEAD_JSON_CHARS',
-  'verifiedBillAttachment', 'duplicate_suppressed', 'upsertLeadBundleToDatabase'
+  'verifiedBillAttachment', 'duplicate_suppressed', 'upsertLeadBundleToDatabase',
+  'dataStore(LEAD_STORE', 'skipped_existing_lead', 'bill_processing: processing',
 ]) {
   if (!leadFn.includes(marker)) throw new Error(`Lead storage function missing marker: ${marker}`);
 }
@@ -93,30 +117,55 @@ for (const marker of [
 const attachmentFn = fs.readFileSync('netlify/functions/bill-attachments.js', 'utf8');
 for (const marker of [
   'econ-fv-bill-files-v1', 'privacy_ack_required', 'privacy_version_mismatch',
-  'createHash("sha256")', 'consistency: "strong"', '/api/bill-attachments'
+  'createHash("sha256")', 'consistency: "strong"', '/api/bill-attachments',
+  'processingFromForm', 'normalizeBillProcessing', 'dataStore(BILL_FILE_STORE',
 ]) {
   if (!attachmentFn.includes(marker)) throw new Error(`Bill attachment function missing marker: ${marker}`);
 }
 
+const databaseFn = fs.readFileSync('netlify/functions/_shared/database.js', 'utf8');
+for (const marker of ['attachmentProcessingValues', 'parse_status', 'parser_version', 'processing = EXCLUDED.processing', 'pg_advisory_xact_lock']) {
+  if (!databaseFn.includes(marker)) throw new Error(`Database bill trace missing marker: ${marker}`);
+}
+
+const blobStoreFn = fs.readFileSync('netlify/functions/_shared/blob-store.js', 'utf8');
+for (const marker of ['getDeployStore', 'getStore', 'deploymentContext() === "production"']) {
+  if (!blobStoreFn.includes(marker)) throw new Error(`Blob scope helper missing marker: ${marker}`);
+}
+
 const configFn = fs.readFileSync('netlify/functions/config.js', 'utf8');
-for (const marker of ['privacy_ready', 'ECON_PRIVACY_URL', 'ECON_PRIVACY_VERSION', 'bill_file_stored: true', 'bill_attachment_endpoint']) {
+for (const marker of [
+  'privacy_ready', 'ECON_PRIVACY_URL', 'ECON_PRIVACY_VERSION', 'bill_file_stored: true',
+  'bill_attachment_endpoint', 'bill_archive_on_parse_failure: true', 'bill_max_file_bytes',
+  'bill_parser_version: "econ-bill-parser-v2.0"', 'nonproduction_blob_scope: "deploy"',
+]) {
   if (!configFn.includes(marker)) throw new Error(`Runtime config missing archive marker: ${marker}`);
 }
 
 const healthFn = fs.readFileSync('netlify/functions/health.js', 'utf8');
-for (const marker of ['1.8-professional-archive-v1', 'lead-bill-archive-v1', 'browser-local', 'privacy_ready', 'admin_auth_configured', 'attachments']) {
+for (const marker of [
+  '1.8-bill-resilience-v2', 'lead-bill-archive-v2', 'browser-local', 'privacy_ready',
+  'admin_auth_configured', 'attachments', 'duplicate_conversion_suppression: true',
+]) {
   if (!healthFn.includes(marker)) throw new Error(`Health function missing archive marker: ${marker}`);
 }
 if (healthFn.includes('ECON_PARSER_API_URL')) throw new Error('Health endpoint still references legacy external parser');
 
 const adminFn = fs.readFileSync('netlify/functions/admin-leads.js', 'utf8');
-for (const marker of ['ECON_ADMIN_TOKEN', 'ADMIN_TOKEN_SHA256_FALLBACK', 'ECON_ADMIN_AUTH_DIGEST', 'sha256Hex', '/api/admin/leads', 'format === "csv"', 'netlify_blobs', 'bill_attachment_id', 'bill_sha256']) {
+for (const marker of [
+  'ECON_ADMIN_TOKEN', 'ADMIN_TOKEN_SHA256_FALLBACK', 'ECON_ADMIN_AUTH_DIGEST', 'sha256Hex',
+  '/api/admin/leads', 'format === "csv"', 'bill_attachment_id', 'bill_sha256',
+  'bill_parse_status', 'bill_parser_version', 'bill_data_mode', 'bill_parse_error_code',
+]) {
   if (!adminFn.includes(marker)) throw new Error(`Admin lead inspector missing marker: ${marker}`);
 }
 
 const analyticsFn = fs.readFileSync('netlify/functions/analytics-summary.js', 'utf8');
-for (const marker of ['ECON_ADMIN_TOKEN', 'ECON_ADMIN_AUTH_DIGEST', 'ADMIN_TOKEN_SHA256_FALLBACK', 'unauthorized', '/api/analytics/summary', 'rateLimit']) {
-  if (!analyticsFn.includes(marker)) throw new Error(`Analytics summary auth missing marker: ${marker}`);
+for (const marker of [
+  'ECON_ADMIN_TOKEN', 'ECON_ADMIN_AUTH_DIGEST', 'ADMIN_TOKEN_SHA256_FALLBACK', 'unauthorized',
+  '/api/analytics/summary', 'rateLimit', 'bill_pipeline', 'archive_success_rate', 'dataStore("econ-fv-events-v1")',
+]) {
+  if (!analyticsFn.includes(marker)) throw new Error(`Analytics summary marker missing: ${marker}`);
 }
 
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]).filter(Boolean);
@@ -148,4 +197,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · professional bill archive + idempotent lead persistence + secured analytics');
+console.log('Repository verification: PASS · resilient OCR + parse-failure archive + DB trace + conversion dedupe + scoped Blobs');
