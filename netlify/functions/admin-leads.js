@@ -81,6 +81,8 @@ function summary(record) {
     bill_parse_status: processing.parse_status,
     bill_parser_mode: processing.parser_mode,
     bill_parser_version: processing.parser_version,
+    bill_engine: processing.engine,
+    bill_engine_version: processing.engine_version,
     bill_data_mode: processing.data_mode,
     bill_data_confirmed: processing.data_confirmed,
     bill_parse_error_code: processing.error_code,
@@ -97,7 +99,8 @@ function toCsv(rows) {
     "lead_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
     "commercial_fv_request", "address", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
     "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
-    "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_data_mode", "bill_data_confirmed", "bill_parse_error_code",
+    "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_engine", "bill_engine_version",
+    "bill_data_mode", "bill_data_confirmed", "bill_parse_error_code",
   ];
   return [columns.join(","), ...rows.map(row => columns.map(key => csvCell(row[key])).join(","))].join("\n");
 }
