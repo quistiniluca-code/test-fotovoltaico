@@ -22,6 +22,7 @@ const valid = {
 assert.equal(leadTest.validateLead(valid), null);
 assert.equal(leadTest.validateLead(valid, 'v1.8-prelive'), null);
 assert.equal(leadTest.validateLead(valid, 'v1.9'), 'privacy_version_mismatch');
+assert.equal(leadTest.validateLead({ ...valid, request_id: 'x' }), 'invalid_request_id');
 assert.equal(leadTest.validateLead({ ...valid, privacy: { acknowledged: false } }), 'privacy_ack_required');
 assert.equal(leadTest.validateLead({ ...valid, contact: { ...valid.contact, mobile: '123' } }), 'invalid_mobile');
 assert.equal(leadTest.validateLead({ ...valid, property: { address: '' } }), 'property_address_required');
@@ -34,7 +35,7 @@ assert.equal(id1.length, 24);
 assert.equal(leadTest.LEAD_STORE, 'econ-fv-leads-prelive');
 
 const record = {
-  schema: 'econ.lead.record.v1',
+  schema: 'econ.lead.record.v3',
   lead_id: id1,
   server: {
     created_at: '2026-08-11T07:00:00.000Z',
@@ -42,11 +43,20 @@ const record = {
     storage: 'netlify_blobs',
     store: 'econ-fv-leads-prelive',
   },
-  lead: valid,
+  lead: {
+    ...valid,
+    request_id: 'request-test-123456',
+    data_linkage: { contact_id: 'contact-test', request_id: 'request-test-123456', document_id: 'doc-test' },
+  },
 };
 
+const normalized = adminTest.normalizeRecord(`lead/${id1}`, record, {});
+assert.equal(normalized.schema, 'econ.lead.record.v3');
 const row = adminTest.summary(record);
 assert.equal(row.lead_id, id1);
+assert.equal(row.contact_id, 'contact-test');
+assert.equal(row.request_id, 'request-test-123456');
+assert.equal(row.document_id, 'doc-test');
 assert.equal(row.first_name, 'Mario');
 assert.equal(row.email, 'mario.rossi@example.test');
 assert.equal(row.address, 'Via Test 10, 24100 Bergamo');
@@ -54,7 +64,7 @@ assert.equal(row.score, 82);
 assert.equal(row.annual_kwh, 4200);
 
 const csv = adminTest.toCsv([row]);
-assert.match(csv, /lead_id,created_at,updated_at/);
+assert.match(csv, /lead_id,contact_id,request_id,document_id,created_at,updated_at/);
 assert.match(csv, /mario\.rossi@example\.test/);
 assert.match(csv, /4200/);
 
