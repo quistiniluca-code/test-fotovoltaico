@@ -15,6 +15,7 @@ const required = [
   'netlify/functions/health.js',
   'netlify/functions/leads.js',
   'netlify/functions/bill-attachments.js',
+  'netlify/functions/document-retention.js',
   'netlify/functions/admin-leads.js',
   'netlify/functions/analytics-summary.js',
   'netlify/functions/events.js',
@@ -23,13 +24,16 @@ const required = [
   'netlify/functions/_shared/bill-processing.js',
   'netlify/database/migrations/20260814201500_create-lead-attachments/migration.sql',
   'netlify/database/migrations/20260815112500_add-bill-processing-trace/migration.sql',
+  'netlify/database/migrations/20260815150000_data-layer-v3/migration.sql',
   'scripts/patch-bill-runtime-resilience-v2.mjs',
   'scripts/patch-remove-confidence.mjs',
   'scripts/patch-address-flow-v2.mjs',
   'scripts/patch-professional-archive-v1.mjs',
+  'scripts/patch-data-layer-v3.mjs',
   'tests/lead-storage-v18.test.mjs',
   'tests/bill-ocr-runtime-v2.test.mjs',
   'tests/professional-lead-bill-archive-v1.test.mjs',
+  'tests/data-layer-v3.test.mjs',
   'tests/result-flow-v2.test.mjs',
   'tests/scoped-flow-regression.test.mjs',
   'tests/address-flow-v2.test.mjs',
@@ -60,6 +64,8 @@ for (const marker of [
   'PROFESSIONAL LEAD + BILL ARCHIVE V2', 'bill_attachment:state.billAttachment||undefined',
   'bill_processing:state.billProcessing||undefined', 'privacy_acknowledged', 'state.leadSaving=true',
   'file_retained:true', 'j.created!==false',
+  'DATA LAYER V3 · idempotent requests + resilient telemetry + richer attribution',
+  'request_id:state.leadRequestId', 'client_event_id:clientEventId', 'submitLeadPayload(payload)',
 ]) {
   if (!html.includes(marker)) throw new Error(`Frontend missing required marker: ${marker}`);
 }
@@ -106,10 +112,11 @@ if (billParser.includes("import('/vendor/tesseract/tesseract.esm.min.js')")) {
 
 const leadFn = fs.readFileSync('netlify/functions/leads.js', 'utf8');
 for (const marker of [
-  'econ-fv-leads-prelive', 'econ.lead.record.v2', 'persisted: true', 'server: {',
+  'econ-fv-leads-prelive', 'econ.lead.record.v3', 'persisted: true', 'server: {',
   'privacy_not_configured', 'privacy_version_mismatch', 'MAX_LEAD_JSON_CHARS',
   'verifiedBillAttachment', 'duplicate_suppressed', 'upsertLeadBundleToDatabase',
   'dataStore(LEAD_STORE', 'skipped_existing_lead', 'bill_processing: processing',
+  'request_replayed', 'contact_id', 'document_id',
 ]) {
   if (!leadFn.includes(marker)) throw new Error(`Lead storage function missing marker: ${marker}`);
 }
@@ -119,13 +126,23 @@ for (const marker of [
   'econ-fv-bill-files-v1', 'privacy_ack_required', 'privacy_version_mismatch',
   'createHash("sha256")', 'consistency: "strong"', '/api/bill-attachments',
   'processingFromForm', 'normalizeBillProcessing', 'dataStore(BILL_FILE_STORE',
+  'detectContentType', 'bill_file_signature_mismatch', 'superseded_blob_preserved',
 ]) {
   if (!attachmentFn.includes(marker)) throw new Error(`Bill attachment function missing marker: ${marker}`);
 }
 
 const databaseFn = fs.readFileSync('netlify/functions/_shared/database.js', 'utf8');
-for (const marker of ['attachmentProcessingValues', 'parse_status', 'parser_version', 'processing = EXCLUDED.processing', 'pg_advisory_xact_lock']) {
-  if (!databaseFn.includes(marker)) throw new Error(`Database bill trace missing marker: ${marker}`);
+for (const marker of [
+  'attachmentProcessingValues', 'parse_status', 'parser_version', 'processing = EXCLUDED.processing',
+  'pg_advisory_xact_lock', 'econ_fv_contacts', 'econ_fv_lead_requests', 'econ_fv_documents',
+  'ON CONFLICT (mobile_normalized) DO UPDATE', 'request_id_conflict',
+]) {
+  if (!databaseFn.includes(marker)) throw new Error(`Database V3 marker missing: ${marker}`);
+}
+
+const retentionFn = fs.readFileSync('netlify/functions/document-retention.js', 'utf8');
+for (const marker of ['econ_fv_documents', "status = 'deleted'", 'econ_fv_lead_attachments', 'schedule: "0 2 * * 0"']) {
+  if (!retentionFn.includes(marker)) throw new Error(`Document retention marker missing: ${marker}`);
 }
 
 const blobStoreFn = fs.readFileSync('netlify/functions/_shared/blob-store.js', 'utf8');
@@ -138,14 +155,16 @@ for (const marker of [
   'privacy_ready', 'ECON_PRIVACY_URL', 'ECON_PRIVACY_VERSION', 'bill_file_stored: true',
   'bill_attachment_endpoint', 'bill_archive_on_parse_failure: true', 'bill_max_file_bytes',
   'bill_parser_version: "econ-bill-parser-v2.0"', 'nonproduction_blob_scope: "deploy"',
+  'data_layer_version: "data-layer-v3"', 'document_history: true', 'request_idempotency: true',
 ]) {
   if (!configFn.includes(marker)) throw new Error(`Runtime config missing archive marker: ${marker}`);
 }
 
 const healthFn = fs.readFileSync('netlify/functions/health.js', 'utf8');
 for (const marker of [
-  '1.8-bill-resilience-v2', 'lead-bill-archive-v2', 'browser-local', 'privacy_ready',
+  '1.8-data-layer-v3', 'lead-bill-archive-v2', 'data-layer-v3', 'browser-local', 'privacy_ready',
   'admin_auth_configured', 'attachments', 'duplicate_conversion_suppression: true',
+  'contacts', 'requests', 'documents', 'document_retention_days: 180',
 ]) {
   if (!healthFn.includes(marker)) throw new Error(`Health function missing archive marker: ${marker}`);
 }
@@ -156,6 +175,7 @@ for (const marker of [
   'ECON_ADMIN_TOKEN', 'ADMIN_TOKEN_SHA256_FALLBACK', 'ECON_ADMIN_AUTH_DIGEST', 'sha256Hex',
   '/api/admin/leads', 'format === "csv"', 'bill_attachment_id', 'bill_sha256',
   'bill_parse_status', 'bill_parser_version', 'bill_data_mode', 'bill_parse_error_code',
+  'contact_id', 'request_id', 'document_id', 'econ\\.lead\\.record\\.v[123]',
 ]) {
   if (!adminFn.includes(marker)) throw new Error(`Admin lead inspector missing marker: ${marker}`);
 }
@@ -197,4 +217,4 @@ for (const file of walk('.')) {
   podPattern.lastIndex = 0;
 }
 
-console.log('Repository verification: PASS · resilient OCR + parse-failure archive + DB trace + conversion dedupe + scoped Blobs');
+console.log('Repository verification: PASS · data layer v3 / resilient OCR / document history / request-event idempotency / scoped Blobs');
