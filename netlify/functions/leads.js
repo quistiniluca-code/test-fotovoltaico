@@ -1,6 +1,6 @@
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
-import { safeSessionId } from "./_shared/sanitize.js";
+import { safeRequestId, safeSessionId } from "./_shared/sanitize.js";
 import { dataStore } from "./_shared/blob-store.js";
 import { normalizeBillProcessing } from "./_shared/bill-processing.js";
 import { upsertLeadBundleToDatabase } from "./_shared/database.js";
@@ -23,6 +23,7 @@ function requiredString(value, min = 1, max = 240) {
 function validateLead(body, expectedPrivacyVersion = "") {
   if (body?.schema !== "econ.lead.v1") return "invalid_schema";
   if (!safeSessionId(body?.session_id)) return "invalid_session_id";
+  if (body?.request_id && !safeRequestId(body.request_id)) return "invalid_request_id";
   if (body?.privacy?.acknowledged !== true) return "privacy_ack_required";
   if (expectedPrivacyVersion && body?.privacy?.version !== expectedPrivacyVersion) return "privacy_version_mismatch";
   if (!requiredString(body?.contact?.first_name, 1, 80)) return "first_name_required";
@@ -117,7 +118,7 @@ async function persistLeadBlob(payload, leadId) {
   const createdAt = previous?.server?.created_at || previous?.created_at || now;
   const processing = normalizeBillProcessing(payload?.bill_processing);
   const record = {
-    schema: "econ.lead.record.v2",
+    schema: "econ.lead.record.v3",
     lead_id: leadId,
     server: {
       created_at: createdAt,
@@ -135,6 +136,9 @@ async function persistLeadBlob(payload, leadId) {
       commercial_request: Boolean(payload?.contact?.commercial_fv_request),
       score: Number(payload?.test?.score) || 0,
       source: "econ-fv-test",
+      contact_id: payload?.data_linkage?.contact_id || "",
+      request_id: payload?.data_linkage?.request_id || payload?.request_id || "",
+      document_id: payload?.data_linkage?.document_id || "",
       has_bill_attachment: Boolean(payload?.bill_attachment),
       bill_attachment_id: payload?.bill_attachment?.attachment_id || "",
       bill_parse_status: processing.parse_status,
@@ -168,6 +172,7 @@ export default async (request) => {
     if (problem) return json({ detail: problem }, 400);
 
     const sessionId = safeSessionId(body.session_id);
+    const requestId = safeRequestId(body.request_id) || "";
     const leadId = leadIdForSession(sessionId);
     const attachment = await verifiedBillAttachment(body, leadId);
     const processing = attachment?.processing
@@ -175,6 +180,7 @@ export default async (request) => {
       : normalizeBillProcessing(body?.bill_processing);
     const canonicalBody = {
       ...body,
+      request_id: requestId || undefined,
       bill_attachment: attachment || undefined,
       bill_processing: processing,
     };
@@ -196,30 +202,59 @@ export default async (request) => {
         persisted: true,
         created: stored.created,
         duplicate_suppressed: !stored.created,
+        request_replayed: false,
         stored_at: stored.updated_at,
         attachment_linked: Boolean(attachment),
       });
     }
 
     if (mode === "dual") {
-      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment);
-      const blobStored = await persistLeadBlob(canonicalBody, leadId);
-      return leadResponseWithMeta(request, canonicalBody, leadId, {
+      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment, requestId);
+      if (databaseStored.request_replayed) {
+        return leadResponseWithMeta(request, canonicalBody, leadId, {
+          ok: true,
+          lead_id: leadId,
+          adapter: "netlify_blobs+netlify_database",
+          persisted: true,
+          created: false,
+          duplicate_suppressed: true,
+          request_replayed: true,
+          blob_persisted: true,
+          database_persisted: true,
+          contact_id: databaseStored.contact_id,
+          document_id: databaseStored.document_id,
+          attachment_linked: databaseStored.attachment_linked,
+          stored_at: databaseStored.updated_at,
+        });
+      }
+      const linkedBody = {
+        ...canonicalBody,
+        data_linkage: {
+          contact_id: databaseStored.contact_id || null,
+          document_id: databaseStored.document_id || null,
+          request_id: requestId || null,
+        },
+      };
+      const blobStored = await persistLeadBlob(linkedBody, leadId);
+      return leadResponseWithMeta(request, linkedBody, leadId, {
         ok: true,
         lead_id: leadId,
         adapter: "netlify_blobs+netlify_database",
         persisted: true,
         created: databaseStored.created,
         duplicate_suppressed: !databaseStored.created,
+        request_replayed: false,
         blob_persisted: true,
         database_persisted: true,
+        contact_id: databaseStored.contact_id,
+        document_id: databaseStored.document_id,
         attachment_linked: databaseStored.attachment_linked,
         stored_at: databaseStored.updated_at || blobStored.updated_at,
       });
     }
 
     if (mode === "database") {
-      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment);
+      const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment, requestId);
       return leadResponseWithMeta(request, canonicalBody, leadId, {
         ok: true,
         lead_id: leadId,
@@ -227,7 +262,10 @@ export default async (request) => {
         persisted: true,
         created: databaseStored.created,
         duplicate_suppressed: !databaseStored.created,
+        request_replayed: Boolean(databaseStored.request_replayed),
         database_persisted: true,
+        contact_id: databaseStored.contact_id,
+        document_id: databaseStored.document_id,
         attachment_linked: databaseStored.attachment_linked,
         stored_at: databaseStored.updated_at,
       });
@@ -237,7 +275,7 @@ export default async (request) => {
   } catch (error) {
     const detail = error instanceof Error ? error.message : "lead_failed";
     console.error("ECON lead persistence failed", detail);
-    const clientError = detail.startsWith("bill_attachment_");
+    const clientError = detail.startsWith("bill_attachment_") || detail === "request_id_conflict";
     return json({ detail }, clientError ? 409 : 500);
   }
 };
