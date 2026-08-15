@@ -1,7 +1,8 @@
-import { getStore } from "@netlify/blobs";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
+import { dataStore } from "./_shared/blob-store.js";
+import { normalizeBillProcessing } from "./_shared/bill-processing.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
@@ -54,6 +55,7 @@ function normalizeRecord(key, value, metadata) {
 function summary(record) {
   const lead = record?.lead || {};
   const attachment = lead?.bill_attachment || null;
+  const processing = normalizeBillProcessing(attachment?.processing ?? lead?.bill_processing);
   return {
     lead_id: record?.lead_id || null,
     created_at: record?.server?.created_at || null,
@@ -76,6 +78,12 @@ function summary(record) {
     bill_size_bytes: attachment?.size_bytes ?? null,
     bill_sha256: attachment?.sha256 || null,
     bill_uploaded_at: attachment?.uploaded_at || null,
+    bill_parse_status: processing.parse_status,
+    bill_parser_mode: processing.parser_mode,
+    bill_parser_version: processing.parser_version,
+    bill_data_mode: processing.data_mode,
+    bill_data_confirmed: processing.data_confirmed,
+    bill_parse_error_code: processing.error_code,
   };
 }
 
@@ -89,6 +97,7 @@ function toCsv(rows) {
     "lead_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
     "commercial_fv_request", "address", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
     "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
+    "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_data_mode", "bill_data_confirmed", "bill_parse_error_code",
   ];
   return [columns.join(","), ...rows.map(row => columns.map(key => csvCell(row[key])).join(","))].join("\n");
 }
@@ -105,7 +114,7 @@ export default async (request) => {
     const full = url.searchParams.get("detail") === "full";
     const format = String(url.searchParams.get("format") || "json").toLowerCase();
 
-    const store = getStore(LEAD_STORE, { consistency: "strong" });
+    const store = dataStore(LEAD_STORE, { consistency: "strong" });
     const { blobs } = await store.list({ prefix: "lead/" });
     const records = [];
     for (const blob of blobs) {
