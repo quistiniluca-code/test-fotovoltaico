@@ -156,6 +156,17 @@ async function leadResponseWithMeta(request, body, leadId, payload) {
   return json({ ...payload, meta_capi: meta.status }, payload.created === false ? 200 : 201);
 }
 
+function linkedBodyFor(canonicalBody, databaseStored, requestId) {
+  return {
+    ...canonicalBody,
+    data_linkage: {
+      contact_id: databaseStored.contact_id || null,
+      document_id: databaseStored.document_id || null,
+      request_id: requestId || null,
+    },
+  };
+}
+
 export default async (request) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
@@ -211,8 +222,10 @@ export default async (request) => {
 
     if (mode === "dual") {
       const databaseStored = await upsertLeadBundleToDatabase(canonicalBody, leadId, attachment, requestId);
+      const linkedBody = linkedBodyFor(canonicalBody, databaseStored, requestId);
+      const blobStored = await persistLeadBlob(linkedBody, leadId);
       if (databaseStored.request_replayed) {
-        return leadResponseWithMeta(request, canonicalBody, leadId, {
+        return leadResponseWithMeta(request, linkedBody, leadId, {
           ok: true,
           lead_id: leadId,
           adapter: "netlify_blobs+netlify_database",
@@ -225,18 +238,9 @@ export default async (request) => {
           contact_id: databaseStored.contact_id,
           document_id: databaseStored.document_id,
           attachment_linked: databaseStored.attachment_linked,
-          stored_at: databaseStored.updated_at,
+          stored_at: databaseStored.updated_at || blobStored.updated_at,
         });
       }
-      const linkedBody = {
-        ...canonicalBody,
-        data_linkage: {
-          contact_id: databaseStored.contact_id || null,
-          document_id: databaseStored.document_id || null,
-          request_id: requestId || null,
-        },
-      };
-      const blobStored = await persistLeadBlob(linkedBody, leadId);
       return leadResponseWithMeta(request, linkedBody, leadId, {
         ok: true,
         lead_id: leadId,
