@@ -143,8 +143,8 @@ const chooseNew="const chooseMode=(mode)=>{const retainFailed=mode==='estimate'&
 if(!chooseOld)throw new Error('Bill path mode handler not found');
 html=html.replace(chooseOld,chooseNew);
 
-const confirmationOld="state.billConfirmed=true;track('bill_data_confirmed');render()";
-const confirmationNew="state.billConfirmed=true;if(state.billProcessing)state.billProcessing={...state.billProcessing,data_confirmed:true};track('bill_data_confirmed',{parser_mode:state.billProcessing?.parser_mode||null});render()";
+const confirmationOld="state.billConfirmed=true;track('bill_data_confirmed')";
+const confirmationNew="state.billConfirmed=true;if(state.billProcessing)state.billProcessing={...state.billProcessing,data_confirmed:true};track('bill_data_confirmed',{parser_mode:state.billProcessing?.parser_mode||null})";
 if(!html.includes(confirmationOld))throw new Error('Bill confirmation handler not found');
 html=html.replace(confirmationOld,confirmationNew);
 
