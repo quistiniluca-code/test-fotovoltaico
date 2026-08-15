@@ -29,7 +29,8 @@ export default async () => {
           : "disabled";
 
   return json({
-    version: "1.8-bill-resilience-v2",
+    version: "1.8-data-layer-v3",
+    data_layer_version: "data-layer-v3",
     privacy_url: privacyReady ? privacyUrl : null,
     privacy_version: privacyReady ? privacyVersion : null,
     privacy_ready: privacyReady,
@@ -41,6 +42,12 @@ export default async () => {
     bill_parser_version: "econ-bill-parser-v2.0",
     bill_parser_external_service: false,
     bill_archive_on_parse_failure: true,
+    bill_signature_validation: true,
+    document_history: true,
+    document_retention_days: 180,
+    contact_case_separation: true,
+    request_idempotency: true,
+    event_idempotency: true,
     lead_submission_endpoint: "/api/leads",
     lead_storage: leadStorage,
     nonproduction_blob_scope: "deploy",
