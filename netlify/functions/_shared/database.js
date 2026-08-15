@@ -50,6 +50,8 @@ function attachmentProcessingValues(payload, attachment) {
     parseStatus: processing.parse_status,
     parserMode: processing.parser_mode,
     parserVersion: processing.parser_version,
+    engine: processing.engine,
+    engineVersion: processing.engine_version,
     dataMode: processing.data_mode,
     dataConfirmed: processing.data_confirmed,
     parseErrorCode: processing.error_code,
@@ -126,11 +128,11 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
         INSERT INTO econ_fv_lead_attachments (
           attachment_id, lead_id, attachment_type, blob_store, blob_key,
           original_filename, content_type, size_bytes, sha256, uploaded_at, linked_at,
-          parse_status, parser_mode, parser_version, data_mode, data_confirmed,
-          parse_error_code, processing, metadata
+          parse_status, parser_mode, parser_version, engine, engine_version,
+          data_mode, data_confirmed, parse_error_code, processing, metadata
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),
-          $11,$12,$13,$14,$15,$16,$17::jsonb,$18::jsonb
+          $11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb
         )
         ON CONFLICT (lead_id, attachment_type) DO UPDATE SET
           attachment_id = EXCLUDED.attachment_id,
@@ -145,6 +147,8 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
           parse_status = EXCLUDED.parse_status,
           parser_mode = EXCLUDED.parser_mode,
           parser_version = EXCLUDED.parser_version,
+          engine = EXCLUDED.engine,
+          engine_version = EXCLUDED.engine_version,
           data_mode = EXCLUDED.data_mode,
           data_confirmed = EXCLUDED.data_confirmed,
           parse_error_code = EXCLUDED.parse_error_code,
@@ -164,6 +168,8 @@ export async function upsertLeadBundleToDatabase(payload, leadId, attachment = n
         p.parseStatus,
         p.parserMode,
         p.parserVersion,
+        p.engine,
+        p.engineVersion,
         p.dataMode,
         p.dataConfirmed,
         p.parseErrorCode,
