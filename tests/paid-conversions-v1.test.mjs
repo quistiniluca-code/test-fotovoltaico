@@ -9,7 +9,8 @@ const meta = fs.readFileSync('netlify/functions/_shared/meta-capi.js', 'utf8');
 for (const marker of [
   'tracking_consent:{analytics:',
   'fireLeadConversion?.(state.a.lead_id)',
-  'j.ok&&j.persisted&&state.a.lead_id',
+  'j.ok&&j.persisted&&j.created!==false&&state.a.lead_id',
+  'duplicate_suppressed:Boolean(j.duplicate_suppressed)',
 ]) {
   if (!html.includes(marker)) throw new Error(`Built lead flow missing paid conversion marker: ${marker}`);
 }
@@ -29,8 +30,13 @@ for (const marker of ['ECON_GOOGLE_ADS_CONVERSION_LABEL', 'google_ads_conversion
   if (!config.includes(marker)) throw new Error(`Runtime conversion config missing marker: ${marker}`);
 }
 
-for (const marker of ['sendMetaLeadEvent', 'meta_capi: meta.status']) {
-  if (!leads.includes(marker)) throw new Error(`Lead endpoint missing Meta CAPI marker: ${marker}`);
+for (const marker of [
+  'sendMetaLeadEvent',
+  'meta_capi: meta.status',
+  'payload.created === false',
+  'skipped_existing_lead',
+]) {
+  if (!leads.includes(marker)) throw new Error(`Lead endpoint missing Meta CAPI dedupe marker: ${marker}`);
 }
 
 for (const marker of [
@@ -50,4 +56,4 @@ if (manager.includes('ECON_META_CAPI_ACCESS_TOKEN') || html.includes('ECON_META_
   throw new Error('Meta CAPI access token must never be exposed to the browser');
 }
 
-console.log('Paid conversions V1 regression: PASS · persisted lead · consent gate · Google transaction ID · Meta Pixel/CAPI event ID');
+console.log('Paid conversions V1 regression: PASS · new lead only / consent gate / Google transaction ID / Meta Pixel+CAPI event ID');
