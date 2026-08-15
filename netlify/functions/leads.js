@@ -50,8 +50,9 @@ async function verifiedBillAttachment(body, leadId) {
   if (!manifest) throw new Error("bill_attachment_manifest_missing");
 
   const expectedId = billAttachmentIdForLead(leadId);
+  const supportedSchema = manifest.schema === "econ.bill.attachment.v1" || manifest.schema === "econ.bill.attachment.v2";
   const fieldsMatch =
-    manifest.schema === "econ.bill.attachment.v1" &&
+    supportedSchema &&
     manifest.attachment_id === expectedId &&
     manifest.lead_id === leadId &&
     manifest.attachment_type === BILL_ATTACHMENT_TYPE &&
