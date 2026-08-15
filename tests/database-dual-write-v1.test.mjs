@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import { __test as databaseTest } from '../netlify/functions/_shared/database.js';
 
 const migration = fs.readFileSync('netlify/database/migrations/20260812173000_create_econ_fv_data/migration.sql', 'utf8');
+const traceMigration = fs.readFileSync('netlify/database/migrations/20260815112500_add-bill-processing-trace/migration.sql', 'utf8');
 const leads = fs.readFileSync('netlify/functions/leads.js', 'utf8');
 const events = fs.readFileSync('netlify/functions/events.js', 'utf8');
 const health = fs.readFileSync('netlify/functions/health.js', 'utf8');
 const database = fs.readFileSync('netlify/functions/_shared/database.js', 'utf8');
+const blobStore = fs.readFileSync('netlify/functions/_shared/blob-store.js', 'utf8');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
 assert.equal(pkg.dependencies['@netlify/database'], '1.1.0');
@@ -22,6 +24,16 @@ for (const marker of [
 ]) assert.ok(migration.includes(marker), `Migration missing marker: ${marker}`);
 
 for (const marker of [
+  'parse_status TEXT NOT NULL',
+  'parser_mode TEXT',
+  'parser_version TEXT',
+  'data_mode TEXT',
+  'data_confirmed BOOLEAN',
+  'parse_error_code TEXT',
+  'processing JSONB NOT NULL',
+]) assert.ok(traceMigration.includes(marker), `Bill trace migration missing marker: ${marker}`);
+
+for (const marker of [
   'getDatabase',
   'upsertLeadBundleToDatabase',
   'upsertLeadToDatabase',
@@ -30,6 +42,9 @@ for (const marker of [
   'ON CONFLICT (lead_id) DO UPDATE',
   'ON CONFLICT (lead_id, attachment_type) DO UPDATE',
   "to_regclass('public.econ_fv_lead_attachments')",
+  'attachmentProcessingValues',
+  'parse_status',
+  'processing = EXCLUDED.processing',
 ]) assert.ok(database.includes(marker), `Database adapter missing marker: ${marker}`);
 
 for (const marker of [
@@ -40,17 +55,21 @@ for (const marker of [
   'persistLeadBlob(canonicalBody, leadId)',
   'duplicate_suppressed',
   'verifiedBillAttachment',
+  'skipped_existing_lead',
 ]) assert.ok(leads.includes(marker), `Lead persistence missing marker: ${marker}`);
 
 assert.ok(events.includes('insertEventToDatabase(payload, eventId)'));
-assert.ok(events.includes('getStore("econ-fv-events-v1")'));
-assert.ok(health.includes('lead-bill-archive-v1'));
+assert.ok(events.includes('dataStore("econ-fv-events-v1")'));
+assert.ok(blobStore.includes('getDeployStore'));
+assert.ok(blobStore.includes('deploymentContext() === "production"'));
+assert.ok(health.includes('lead-bill-archive-v2'));
 assert.ok(health.includes('database_ready'));
 assert.ok(health.includes('attachments: status.attachments_table'));
 assert.ok(health.includes('netlify_blobs+netlify_database'));
+assert.ok(health.includes('duplicate_conversion_suppression: true'));
 
 assert.equal(databaseTest.finiteNumberOrNull('4200'), 4200);
 assert.equal(databaseTest.finiteNumberOrNull('not-a-number'), null);
 assert.equal(databaseTest.jsonValue({ a: 1 }), '{"a":1}');
 
-console.log('Netlify Database dual-write regression: PASS · strict transaction/idempotency/attachment registry/health');
+console.log('Netlify Database dual-write regression: PASS · strict transaction / processing trace / idempotency / scoped Blobs');
