@@ -1,6 +1,6 @@
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
-import { safeSessionId, sanitizeEventDetail } from "./_shared/sanitize.js";
+import { safeRequestId, safeSessionId, sanitizeEventDetail } from "./_shared/sanitize.js";
 import { dataStore } from "./_shared/blob-store.js";
 import { insertEventToDatabase } from "./_shared/database.js";
 
@@ -17,12 +17,16 @@ export default async (request) => {
     const body = await readJson(request);
     const sessionId = safeSessionId(body.session_id);
     const event = String(body.event || "").trim();
+    const suppliedClientEventId = body.client_event_id == null ? "" : safeRequestId(body.client_event_id);
     if (!sessionId || !ALLOWED_EVENTS.has(event)) return json({ detail: "invalid_event" }, 400);
+    if (body.client_event_id && !suppliedClientEventId) return json({ detail: "invalid_client_event_id" }, 400);
 
     const eventId = crypto.randomUUID();
+    const clientEventId = suppliedClientEventId || eventId;
     const payload = {
-      schema: "econ.event.v1",
+      schema: "econ.event.v2",
       event_id: eventId,
+      client_event_id: clientEventId,
       session_id: sessionId,
       event,
       step: Number.isInteger(body.step) ? body.step : null,
@@ -31,14 +35,14 @@ export default async (request) => {
     };
 
     const store = dataStore("econ-fv-events-v1");
-    const key = `${payload.timestamp.slice(0, 10)}/${sessionId}/${Date.now()}-${eventId}`;
+    const key = `${payload.timestamp.slice(0, 10)}/${sessionId}/${clientEventId}`;
     await store.setJSON(key, payload);
 
     let databasePersisted = null;
     const mode = env("ECON_CRM_MODE", "blobs").toLowerCase();
     if (mode === "dual" || mode === "database") {
       try {
-        await insertEventToDatabase(payload, eventId);
+        await insertEventToDatabase(payload, eventId, clientEventId);
         databasePersisted = true;
       } catch (error) {
         databasePersisted = false;
@@ -46,7 +50,7 @@ export default async (request) => {
       }
     }
 
-    return json({ ok: true, database_persisted: databasePersisted }, 202);
+    return json({ ok: true, client_event_id: clientEventId, database_persisted: databasePersisted }, 202);
   } catch (error) {
     return json({ detail: error instanceof Error ? error.message : "event_failed" }, 400);
   }

@@ -18,10 +18,13 @@ export default async () => {
         leads: status.leads_table,
         events: status.events_table,
         attachments: status.attachments_table,
+        contacts: status.contacts_table,
+        requests: status.requests_table,
+        documents: status.documents_table,
       };
     } catch {
       databaseReady = false;
-      databaseTables = { leads: false, events: false, attachments: false };
+      databaseTables = { leads: false, events: false, attachments: false, contacts: false, requests: false, documents: false };
     }
   }
 
@@ -37,8 +40,9 @@ export default async () => {
 
   return json({
     ok: true,
-    version: "1.8-bill-resilience-v2",
-    data_layer_version: "lead-bill-archive-v2",
+    version: "1.8-data-layer-v3",
+    data_layer_version: "data-layer-v3",
+    bill_archive_version: "lead-bill-archive-v2",
     bill_parser_mode: "browser-local",
     bill_parser_version: "econ-bill-parser-v2.0",
     bill_parser_external_service: false,
@@ -46,6 +50,12 @@ export default async () => {
     bill_file_storage: "netlify_blobs",
     bill_archive_on_parse_failure: true,
     bill_max_file_bytes: 4 * 1024 * 1024,
+    bill_signature_validation: true,
+    document_history: true,
+    document_retention_days: 180,
+    contact_case_separation: true,
+    request_idempotency: true,
+    event_idempotency: true,
     nonproduction_blob_scope: "deploy",
     duplicate_conversion_suppression: true,
     lead_storage: leadStorage,

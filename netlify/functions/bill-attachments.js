@@ -38,6 +38,16 @@ function inferredType(name, supplied) {
   return "";
 }
 
+function detectContentType(bytes) {
+  const b = Buffer.from(bytes);
+  const starts = (...values) => values.every((value, index) => b[index] === value);
+  if (b.length >= 5 && starts(0x25, 0x50, 0x44, 0x46, 0x2d)) return "application/pdf";
+  if (b.length >= 3 && starts(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (b.length >= 8 && starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
+  if (b.length >= 12 && starts(0x52, 0x49, 0x46, 0x46) && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
+  return "";
+}
+
 function manifestKey(leadId) {
   return `lead/${leadId}/${MANIFEST_SUFFIX}`;
 }
@@ -82,10 +92,13 @@ export default async (request) => {
     if (size > MAX_FILE_BYTES) return json({ detail: "bill_file_too_large" }, 413);
 
     const originalFilename = cleanFilename(file.name);
-    const contentType = inferredType(originalFilename, file.type);
-    if (!contentType) return json({ detail: "unsupported_bill_file_type" }, 415);
-
+    const declaredType = inferredType(originalFilename, file.type);
     const bytes = await file.arrayBuffer();
+    const detectedType = detectContentType(bytes);
+    if (!detectedType || !ALLOWED_TYPES.has(detectedType)) return json({ detail: "unsupported_bill_file_signature" }, 415);
+    if (declaredType && declaredType !== detectedType) return json({ detail: "bill_file_signature_mismatch" }, 415);
+    const contentType = detectedType;
+
     const sha256 = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
     const leadId = leadIdForSession(sessionId);
     const attachmentId = billAttachmentIdForLead(leadId);
@@ -100,7 +113,7 @@ export default async (request) => {
       : new Date().toISOString();
 
     const descriptor = {
-      schema: "econ.bill.attachment.v1",
+      schema: "econ.bill.attachment.v2",
       attachment_id: attachmentId,
       lead_id: leadId,
       attachment_type: BILL_ATTACHMENT_TYPE,
@@ -127,13 +140,18 @@ export default async (request) => {
           sha256,
           uploaded_at: uploadedAt,
           privacy_version: privacyVersion,
+          lifecycle: "document-history-v1",
         },
       });
     }
     await store.setJSON(mKey, descriptor);
-    if (!deduplicated && previous?.blob_key && previous.blob_key !== blobKey) await store.delete(previous.blob_key);
 
-    return json({ ok: true, attachment: descriptor, deduplicated }, deduplicated ? 200 : 201);
+    return json({
+      ok: true,
+      attachment: descriptor,
+      deduplicated,
+      superseded_blob_preserved: Boolean(!deduplicated && previous?.blob_key && previous.blob_key !== blobKey && previousBlob),
+    }, deduplicated ? 200 : 201);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "bill_archive_failed";
     console.error("ECON bill archive failed", detail);
@@ -152,6 +170,7 @@ export const __test = {
   MAX_PROCESSING_JSON_CHARS,
   cleanFilename,
   inferredType,
+  detectContentType,
   manifestKey,
   sameDescriptor,
   processingFromForm,
