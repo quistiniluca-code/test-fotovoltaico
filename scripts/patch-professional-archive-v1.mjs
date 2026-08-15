@@ -17,9 +17,9 @@ if(!html.includes(stateOld))throw new Error('State initializer not found');
 html=html.replace(stateOld,stateNew);
 
 const uploadMarker='async function uploadBill(file){';
-const uploadEndMarker='async function addressSearch(q){';
 const uploadStart=html.indexOf(uploadMarker);
-const uploadEnd=html.indexOf(uploadEndMarker,uploadStart);
+const uploadEndCandidates=['async function addressSearch(q){','async function saveLead(){'];
+const uploadEnd=uploadEndCandidates.map(token=>html.indexOf(token,uploadStart)).filter(index=>index>uploadStart).sort((a,b)=>a-b)[0]??-1;
 if(uploadStart<0||uploadEnd<0||uploadEnd<=uploadStart)throw new Error('Local uploadBill block not found');
 
 const helper=String.raw`
