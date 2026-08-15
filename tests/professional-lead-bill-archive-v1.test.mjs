@@ -34,6 +34,7 @@ assert.equal(attachmentTest.cleanFilename('../bolletta.pdf'),'.._bolletta.pdf');
 assert.equal(attachmentTest.inferredType('bill.pdf',''),'application/pdf');
 assert.equal(attachmentTest.inferredType('bill.jpg',''),'image/jpeg');
 assert.equal(attachmentTest.inferredType('bill.exe',''),'');
+assert.equal(attachmentTest.detectContentType(Buffer.from('%PDF-1.7\n')),'application/pdf');
 assert.equal(attachmentTest.manifestKey(leadId),`lead/${leadId}/bill/manifest`);
 assert.equal(attachmentTest.sameDescriptor({attachment_id:'a',sha256:'b',blob_key:'c'},{attachment_id:'a',sha256:'b',blob_key:'c'}),true);
 const failedProcessing=normalizeBillProcessing({parse_status:'parse_failed',data_mode:'estimate',error_code:'ocr_engine_unavailable',data_confirmed:false});
@@ -63,7 +64,7 @@ for(const marker of [
   'verifiedBillAttachment',
   'bill_attachment_required',
   'bill_attachment_integrity_mismatch',
-  'upsertLeadBundleToDatabase(canonicalBody, leadId, attachment)',
+  'upsertLeadBundleToDatabase(canonicalBody, leadId, attachment, requestId)',
   'duplicate_suppressed',
   'dataStore(LEAD_STORE, { consistency: "strong" })',
   'skipped_existing_lead',
