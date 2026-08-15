@@ -37,7 +37,7 @@ function authorized(request) {
 }
 
 function normalizeRecord(key, value, metadata) {
-  if (/^econ\.lead\.record\.v[12]$/.test(String(value?.schema || "")) && value?.lead) return value;
+  if (/^econ\.lead\.record\.v[123]$/.test(String(value?.schema || "")) && value?.lead) return value;
   const leadId = String(key).split("/").pop() || "";
   return {
     schema: "econ.lead.record.legacy",
@@ -56,8 +56,12 @@ function summary(record) {
   const lead = record?.lead || {};
   const attachment = lead?.bill_attachment || null;
   const processing = normalizeBillProcessing(attachment?.processing ?? lead?.bill_processing);
+  const linkage = lead?.data_linkage || {};
   return {
     lead_id: record?.lead_id || null,
+    contact_id: linkage.contact_id || null,
+    request_id: linkage.request_id || lead?.request_id || null,
+    document_id: linkage.document_id || null,
     created_at: record?.server?.created_at || null,
     updated_at: record?.server?.updated_at || null,
     first_name: lead?.contact?.first_name || null,
@@ -96,7 +100,7 @@ function csvCell(value) {
 
 function toCsv(rows) {
   const columns = [
-    "lead_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
+    "lead_id", "contact_id", "request_id", "document_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
     "commercial_fv_request", "address", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
     "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
     "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_engine", "bill_engine_version",
