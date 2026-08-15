@@ -1,7 +1,7 @@
-import { getStore } from "@netlify/blobs";
 import { env } from "./_shared/env.js";
 import { json, readJson, sameOriginRequest } from "./_shared/http.js";
 import { safeSessionId, sanitizeEventDetail } from "./_shared/sanitize.js";
+import { dataStore } from "./_shared/blob-store.js";
 import { insertEventToDatabase } from "./_shared/database.js";
 
 const ALLOWED_EVENTS = new Set([
@@ -30,7 +30,7 @@ export default async (request) => {
       timestamp: new Date().toISOString(),
     };
 
-    const store = getStore("econ-fv-events-v1");
+    const store = dataStore("econ-fv-events-v1");
     const key = `${payload.timestamp.slice(0, 10)}/${sessionId}/${Date.now()}-${eventId}`;
     await store.setJSON(key, payload);
 
