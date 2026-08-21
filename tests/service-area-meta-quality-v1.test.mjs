@@ -71,7 +71,9 @@ for (const marker of [
 ]) assert(admin.includes(marker), `Admin export missing marker: ${marker}`);
 
 for (const marker of [
-  '1.9-service-area-meta-quality-v1',
+  'version: "1.8-data-layer-v3"',
+  'data_layer_version: "data-layer-v3"',
+  'service_area_version: "econ.service-area.v1"',
   'service_area: serviceAreaConfigSummary()',
   'meta_lead_service_area_filter: true',
   'meta_qualified_lead_event: "QualifiedLead"',
