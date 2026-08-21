@@ -13,7 +13,7 @@ for (const marker of [
   'id="city"',
   'id="province"',
   "source=hasBillPrefill?'bill_read_reviewed':'manual'",
-  "track('address_confirmed',{source})",
+  "track('address_confirmed',{source,province:provinceNormalized})",
 ]) {
   if (!html.includes(marker)) throw new Error(`Address Flow V2 missing marker: ${marker}`);
 }
@@ -70,4 +70,4 @@ for (const [raw, expected] of parserCases) {
   }
 }
 
-console.log('Address Flow V2 regression: PASS · bill-reader prefill + four-field manual fallback');
+console.log('Address Flow V2 regression: PASS · bill-reader prefill + four-field manual fallback + province telemetry');
