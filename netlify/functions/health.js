@@ -41,8 +41,9 @@ export default async () => {
 
   return json({
     ok: true,
-    version: "1.9-service-area-meta-quality-v1",
-    data_layer_version: "data-layer-v3+service-area-v1",
+    version: "1.8-data-layer-v3",
+    data_layer_version: "data-layer-v3",
+    service_area_version: "econ.service-area.v1",
     bill_archive_version: "lead-bill-archive-v2",
     bill_parser_mode: "browser-local",
     bill_parser_version: "econ-bill-parser-v2.0",
