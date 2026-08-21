@@ -12,7 +12,7 @@ for (const marker of [
   '<link rel="stylesheet" href="/assets/consent-manager.css">',
   '<script type="module" src="/assets/consent-manager.js"></script>',
   'tracking_consent:{analytics:',
-  'fireLeadConversion?.(state.a.lead_id)',
+  'fireLeadConversion?.(state.a.lead_id,{metaLeadEligible,qualifiedLeadEligible})',
   'j.ok&&j.persisted&&j.created!==false&&state.a.lead_id',
 ]) {
   if (!html.includes(marker)) throw new Error(`Consent/conversion marker missing from built HTML: ${marker}`);
@@ -38,6 +38,7 @@ for (const marker of [
   "window.gtag('event', 'conversion'",
   'transaction_id: leadId',
   "window.fbq('track', 'Lead', {}, { eventID: leadId })",
+  "window.fbq('trackCustom', 'QualifiedLead', {}, { eventID: qualifiedEventId })",
   "currentConsent?.marketing !== true",
 ]) {
   if (!manager.includes(marker)) throw new Error(`Consent manager missing marker: ${marker}`);
@@ -64,6 +65,8 @@ for (const marker of [
   'ECON_META_PIXEL_ID',
   'consent_mode: "basic"',
   'consent_version: "2026-08-13"',
+  'meta_lead_service_area_filter: true',
+  'meta_qualified_lead_event: "QualifiedLead"',
 ]) {
   if (!config.includes(marker)) throw new Error(`Runtime tracking config missing marker: ${marker}`);
 }
@@ -73,12 +76,18 @@ for (const marker of ['sendMetaLeadEvent', 'meta_capi: meta.status', 'skipped_ex
 }
 for (const marker of [
   'ECON_META_CAPI_ACCESS_TOKEN',
+  'classifyLeadQuality(body)',
   'body?.tracking_consent?.marketing !== true',
-  'event_name: "Lead"',
-  'event_id: leadId',
+  'event_name: eventName',
+  'event_id: eventId',
+  'eventName: "Lead"',
+  'eventName: "QualifiedLead"',
+  'eventId: leadId',
+  'eventId: `${leadId}:qualified`',
   'action_source: "website"',
   'sha256(email)',
   'sha256(phone)',
+  'skipped_out_of_area',
 ]) {
   if (!meta.includes(marker)) throw new Error(`Meta CAPI helper missing marker: ${marker}`);
 }
@@ -100,4 +109,4 @@ if (!css.includes('.econ-consent-actions') || !css.includes('.econ-consent-setti
   throw new Error('Consent UI styles incomplete');
 }
 
-console.log('Consent mode V1 regression: PASS · opt-in defaults · new-lead conversion gate · Meta Pixel/CAPI dedupe ID');
+console.log('Consent mode V1 regression: PASS · opt-in defaults · service-area Meta gate · QualifiedLead Pixel/CAPI dedupe');
