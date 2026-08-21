@@ -22,7 +22,9 @@ const conversionOld="if(j.ok&&j.persisted&&j.created!==false&&state.a.lead_id)wi
 const conversionNew="if(j.ok&&j.persisted&&j.created!==false&&state.a.lead_id){const metaStatus=String(j.meta_capi||'');const metaLeadEligible=metaStatus==='sent'||metaStatus.startsWith('sent_')||metaStatus.startsWith('eligible_');const qualifiedLeadEligible=metaLeadEligible&&metaStatus.includes('qualified');const serviceAreaStatus=metaStatus.includes('out_of_area')?'OUT_OF_AREA':metaStatus.includes('unknown_area')?'UNKNOWN':metaLeadEligible?'IN_AREA':'UNKNOWN';state.a.service_area_status=serviceAreaStatus;state.a.meta_lead_eligible=metaLeadEligible;state.a.qualified_lead_eligible=qualifiedLeadEligible;window.ECONTrackingConsent?.fireLeadConversion?.(state.a.lead_id,{metaLeadEligible,qualifiedLeadEligible});track('lead_quality_classified',{service_area_status:serviceAreaStatus,meta_lead_eligible:metaLeadEligible,qualified_lead_eligible:qualifiedLeadEligible,meta_capi_status:metaStatus});if(qualifiedLeadEligible)track('qualified_lead',{service_area_status:serviceAreaStatus});else if(serviceAreaStatus==='OUT_OF_AREA')track('lead_out_of_area',{meta_capi_status:metaStatus})}go(28)";
 if(!html.includes(conversionOld))throw new Error('Paid conversion call marker not found');
 html=html.replace(conversionOld,conversionNew);
-html=html.replace('DATA LAYER V3 · idempotent requests + resilient telemetry + richer attribution',`DATA LAYER V3 · idempotent requests + resilient telemetry + richer attribution\n/* ${marker} */`);
+const dataLayerComment='/* DATA LAYER V3 · idempotent requests + resilient telemetry + richer attribution */';
+if(!html.includes(dataLayerComment))throw new Error('Data Layer V3 comment boundary not found');
+html=html.replace(dataLayerComment,`${dataLayerComment}\n/* ${marker} */`);
 
 const consentStart=consent.indexOf('function firePaidLeadConversion(rawLeadId) {');
 const consentEnd=consent.indexOf('\n\nfunction applyConsent(',consentStart);
