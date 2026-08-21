@@ -1,6 +1,7 @@
 import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 import { databaseStatus } from "./_shared/database.js";
+import { serviceAreaConfigSummary } from "./_shared/service-area.js";
 
 export default async () => {
   const crmMode = env("ECON_CRM_MODE", "blobs").toLowerCase();
@@ -40,8 +41,8 @@ export default async () => {
 
   return json({
     ok: true,
-    version: "1.8-data-layer-v3",
-    data_layer_version: "data-layer-v3",
+    version: "1.9-service-area-meta-quality-v1",
+    data_layer_version: "data-layer-v3+service-area-v1",
     bill_archive_version: "lead-bill-archive-v2",
     bill_parser_mode: "browser-local",
     bill_parser_version: "econ-bill-parser-v2.0",
@@ -56,6 +57,9 @@ export default async () => {
     contact_case_separation: true,
     request_idempotency: true,
     event_idempotency: true,
+    service_area: serviceAreaConfigSummary(),
+    meta_lead_service_area_filter: true,
+    meta_qualified_lead_event: "QualifiedLead",
     nonproduction_blob_scope: "deploy",
     duplicate_conversion_suppression: true,
     lead_storage: leadStorage,
