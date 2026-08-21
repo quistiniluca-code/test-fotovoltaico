@@ -3,6 +3,7 @@ import { env } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 import { dataStore } from "./_shared/blob-store.js";
 import { normalizeBillProcessing } from "./_shared/bill-processing.js";
+import { classifyLeadQuality } from "./_shared/service-area.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
@@ -57,6 +58,8 @@ function summary(record) {
   const attachment = lead?.bill_attachment || null;
   const processing = normalizeBillProcessing(attachment?.processing ?? lead?.bill_processing);
   const linkage = lead?.data_linkage || {};
+  const quality = classifyLeadQuality(lead);
+  const area = quality.service_area;
   return {
     lead_id: record?.lead_id || null,
     contact_id: linkage.contact_id || null,
@@ -70,6 +73,14 @@ function summary(record) {
     email: lead?.contact?.email || null,
     commercial_fv_request: Boolean(lead?.contact?.commercial_fv_request),
     address: lead?.property?.address || null,
+    property_city: lead?.property?.city || null,
+    property_province: lead?.property?.province || area.province_code || null,
+    service_area_status: area.status,
+    service_area_tier: area.tier,
+    service_area_region: area.region,
+    service_area_province_code: area.province_code,
+    meta_lead_eligible: quality.meta_lead_eligible,
+    qualified_lead_eligible: quality.qualified_lead_eligible,
     score: Number(lead?.test?.score) || 0,
     supplier: lead?.bill_summary?.supplier || null,
     annual_kwh: lead?.bill_summary?.annual_kwh ?? null,
@@ -101,7 +112,8 @@ function csvCell(value) {
 function toCsv(rows) {
   const columns = [
     "lead_id", "contact_id", "request_id", "document_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
-    "commercial_fv_request", "address", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
+    "commercial_fv_request", "address", "property_city", "property_province", "service_area_status", "service_area_tier", "service_area_region", "service_area_province_code",
+    "meta_lead_eligible", "qualified_lead_eligible", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
     "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
     "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_engine", "bill_engine_version",
     "bill_data_mode", "bill_data_confirmed", "bill_parse_error_code",

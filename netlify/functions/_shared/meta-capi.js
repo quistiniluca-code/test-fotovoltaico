@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { env } from "./env.js";
+import { classifyLeadQuality } from "./service-area.js";
 
 function sha256(value) {
   return createHash("sha256").update(String(value)).digest("hex");
@@ -35,26 +36,64 @@ function sourceUrl(request) {
   return /^https:\/\//i.test(origin) ? origin.slice(0, 1000) : undefined;
 }
 
-export async function sendMetaLeadEvent({ request, body, leadId }) {
-  if (body?.tracking_consent?.marketing !== true) return { status: "skipped_no_marketing_consent" };
+function eligibleStatus(base, qualified) {
+  return qualified ? `${base}_qualified` : base;
+}
 
-  const pixelId = String(env("ECON_META_PIXEL_ID") || "").trim();
-  const accessToken = String(env("ECON_META_CAPI_ACCESS_TOKEN") || "").trim();
-  if (!/^\d{5,25}$/.test(pixelId) || !accessToken) return { status: "skipped_not_configured" };
-
-  const version = String(env("ECON_META_GRAPH_VERSION") || "").trim();
-  const versionPath = /^v\d+\.\d+$/.test(version) ? `${version}/` : "";
-  const endpoint = `https://graph.facebook.com/${versionPath}${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`;
+function metaEvent({ request, body, leadId, eventName, eventId }) {
   const event = {
-    event_name: "Lead",
+    event_name: eventName,
     event_time: Math.floor(Date.now() / 1000),
-    event_id: leadId,
+    event_id: eventId,
     action_source: "website",
     event_source_url: sourceUrl(request),
     user_data: normalizedUserData(request, body, leadId),
   };
-  const data = Object.fromEntries(Object.entries(event).filter(([, value]) => value !== undefined));
-  const payload = { data: [data] };
+  return Object.fromEntries(Object.entries(event).filter(([, value]) => value !== undefined));
+}
+
+export async function sendMetaLeadEvent({ request, body, leadId }) {
+  const quality = classifyLeadQuality(body);
+  const serviceArea = quality.service_area;
+
+  if (!quality.meta_lead_eligible) {
+    return {
+      status: serviceArea.status === "OUT_OF_AREA" ? "skipped_out_of_area" : "skipped_unknown_area",
+      service_area: serviceArea,
+      meta_lead_eligible: false,
+      qualified_lead_eligible: false,
+    };
+  }
+
+  const qualified = quality.qualified_lead_eligible;
+  if (body?.tracking_consent?.marketing !== true) {
+    return {
+      status: eligibleStatus("eligible_skipped_no_marketing_consent", qualified),
+      service_area: serviceArea,
+      meta_lead_eligible: true,
+      qualified_lead_eligible: qualified,
+    };
+  }
+
+  const pixelId = String(env("ECON_META_PIXEL_ID") || "").trim();
+  const accessToken = String(env("ECON_META_CAPI_ACCESS_TOKEN") || "").trim();
+  if (!/^\d{5,25}$/.test(pixelId) || !accessToken) {
+    return {
+      status: eligibleStatus("eligible_skipped_not_configured", qualified),
+      service_area: serviceArea,
+      meta_lead_eligible: true,
+      qualified_lead_eligible: qualified,
+    };
+  }
+
+  const version = String(env("ECON_META_GRAPH_VERSION") || "").trim();
+  const versionPath = /^v\d+\.\d+$/.test(version) ? `${version}/` : "";
+  const endpoint = `https://graph.facebook.com/${versionPath}${pixelId}/events?access_token=${encodeURIComponent(accessToken)}`;
+  const events = [metaEvent({ request, body, leadId, eventName: "Lead", eventId: leadId })];
+  if (qualified) {
+    events.push(metaEvent({ request, body, leadId, eventName: "QualifiedLead", eventId: `${leadId}:qualified` }));
+  }
+  const payload = { data: events };
   const testEventCode = String(env("ECON_META_TEST_EVENT_CODE") || "").trim();
   if (testEventCode) payload.test_event_code = testEventCode;
 
@@ -65,8 +104,21 @@ export async function sendMetaLeadEvent({ request, body, leadId }) {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(5000),
     });
-    return response.ok ? { status: "sent" } : { status: `failed_http_${response.status}` };
+    return {
+      status: response.ok ? eligibleStatus("sent", qualified) : eligibleStatus(`eligible_failed_http_${response.status}`, qualified),
+      service_area: serviceArea,
+      meta_lead_eligible: true,
+      qualified_lead_eligible: qualified,
+    };
   } catch (error) {
-    return { status: "failed_network", detail: error instanceof Error ? error.name : "error" };
+    return {
+      status: eligibleStatus("eligible_failed_network", qualified),
+      detail: error instanceof Error ? error.name : "error",
+      service_area: serviceArea,
+      meta_lead_eligible: true,
+      qualified_lead_eligible: qualified,
+    };
   }
 }
+
+export const __test = { sha256, cookieMap, normalizedUserData, sourceUrl, eligibleStatus, metaEvent };

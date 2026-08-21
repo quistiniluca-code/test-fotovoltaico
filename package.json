@@ -1,6 +1,6 @@
 {
-  "name": "econ-fv-test-v1-8",
-  "version": "1.8.0",
+  "name": "econ-fv-test-v1-9",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -27,6 +27,8 @@
     "patch:bill-revisit-v2": "node scripts/patch-bill-revisit-v2.mjs",
     "patch:professional-archive-v1": "node scripts/patch-professional-archive-v1.mjs",
     "patch:data-layer-v3": "node scripts/patch-data-layer-v3.mjs",
+    "patch:service-area-v1": "node scripts/patch-service-area-meta-quality-v1.mjs",
+    "patch:hero-clean-v1": "node scripts/patch-hero-remove-challenge-v1.mjs",
     "test:stream-compat": "node tests/readable-stream-compat.test.mjs",
     "test:bill-parser": "node tests/bill-parser-v17.test.mjs",
     "test:bill-runtime-v2": "node tests/bill-ocr-runtime-v2.test.mjs",
@@ -39,6 +41,8 @@
     "test:address-v2": "node tests/address-flow-v2.test.mjs",
     "test:consent-v1": "node tests/consent-mode-v1.test.mjs",
     "test:paid-conversions-v1": "node tests/paid-conversions-v1.test.mjs",
+    "test:service-area-v1": "node tests/service-area-meta-quality-v1.test.mjs",
+    "test:hero-clean-v1": "node tests/hero-clean-v1.test.mjs",
     "test:database-v1": "node tests/database-dual-write-v1.test.mjs",
     "test:professional-archive-v1": "node tests/professional-lead-bill-archive-v1.test.mjs",
     "test:data-layer-v3": "node tests/data-layer-v3.test.mjs",
@@ -51,7 +55,7 @@
     "test:bill-revisit-v2": "node tests/bill-revisit-v2.test.mjs",
     "check": "node scripts/check-functions.mjs",
     "verify": "node scripts/verify-repo.mjs",
-    "build": "npm run vendor && npm run patch:bill-runtime-v2 && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:whatsapp-final && npm run patch:surprise-offer && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run patch:mobile-ui-v4 && npm run patch:launch-ux-v5 && npm run patch:bill-fallback-v1 && npm run patch:bill-revisit-v2 && npm run patch:professional-archive-v1 && npm run patch:data-layer-v3 && npm run test:stream-compat && npm run test:bill-parser && npm run test:bill-runtime-v2 && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:whatsapp-final && npm run test:surprise-offer && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:database-v1 && npm run test:professional-archive-v1 && npm run test:data-layer-v3 && npm run test:hero-asset-v3 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run test:launch-ux-v5 && npm run test:bill-fallback-v1 && npm run test:bill-revisit-v2 && npm run check && npm run verify",
+    "build": "npm run vendor && npm run patch:bill-runtime-v2 && npm run patch:v18 && npm run patch:bill-ios && npm run patch:hero-v2 && npm run patch:hero-png && npm run patch:hero-mobile && npm run patch:result-v2 && npm run patch:economic-v3 && npm run patch:whatsapp-final && npm run patch:surprise-offer && npm run patch:remove-confidence && npm run patch:address-v2 && npm run patch:consent-v1 && npm run patch:mobile-global && npm run patch:mobile-viewport-v2 && npm run patch:mobile-ui-v4 && npm run patch:launch-ux-v5 && npm run patch:bill-fallback-v1 && npm run patch:bill-revisit-v2 && npm run patch:professional-archive-v1 && npm run patch:data-layer-v3 && npm run patch:service-area-v1 && npm run patch:hero-clean-v1 && npm run test:stream-compat && npm run test:bill-parser && npm run test:bill-runtime-v2 && npm run test:lead-storage && npm run test:result-v2 && npm run test:economic-v3 && npm run test:whatsapp-final && npm run test:surprise-offer && npm run test:scoped-flow && npm run test:address-v2 && npm run test:consent-v1 && npm run test:paid-conversions-v1 && npm run test:service-area-v1 && npm run test:hero-clean-v1 && npm run test:database-v1 && npm run test:professional-archive-v1 && npm run test:data-layer-v3 && npm run test:hero-asset-v3 && npm run test:hero-mobile && npm run test:mobile-global && npm run test:mobile-viewport-v2 && npm run test:launch-ux-v5 && npm run test:bill-fallback-v1 && npm run test:bill-revisit-v2 && npm run check && npm run verify",
     "test": "npm run build"
   },
   "dependencies": {

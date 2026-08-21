@@ -1,5 +1,6 @@
 import { env, envNum } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
+import { serviceAreaConfigSummary } from "./_shared/service-area.js";
 
 function publicTrackingId(name, pattern) {
   const value = String(env(name) || "").trim();
@@ -31,6 +32,7 @@ export default async () => {
   return json({
     version: "1.8-data-layer-v3",
     data_layer_version: "data-layer-v3",
+    service_area_version: "econ.service-area.v1",
     privacy_url: privacyReady ? privacyUrl : null,
     privacy_version: privacyReady ? privacyVersion : null,
     privacy_ready: privacyReady,
@@ -48,6 +50,9 @@ export default async () => {
     contact_case_separation: true,
     request_idempotency: true,
     event_idempotency: true,
+    service_area: serviceAreaConfigSummary(),
+    meta_lead_service_area_filter: true,
+    meta_qualified_lead_event: "QualifiedLead",
     lead_submission_endpoint: "/api/leads",
     lead_storage: leadStorage,
     nonproduction_blob_scope: "deploy",
