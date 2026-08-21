@@ -30,8 +30,9 @@ export default async () => {
           : "disabled";
 
   return json({
-    version: "1.9-service-area-meta-quality-v1",
-    data_layer_version: "data-layer-v3+service-area-v1",
+    version: "1.8-data-layer-v3",
+    data_layer_version: "data-layer-v3",
+    service_area_version: "econ.service-area.v1",
     privacy_url: privacyReady ? privacyUrl : null,
     privacy_version: privacyReady ? privacyVersion : null,
     privacy_ready: privacyReady,
