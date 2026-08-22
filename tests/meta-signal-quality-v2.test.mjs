@@ -61,7 +61,7 @@ for (const marker of [
   'client_user_agent',
   'fn: firstName ? [sha256(firstName)]',
   'ln: lastName ? [sha256(lastName)]',
-  'fbc: cookies._fbc || fbcFromAttribution(body)',
+  'fbc: validBrowserId(cookies._fbc, "fb.1.") || fbcFromAttribution(body)',
   'eventName: "ServiceAreaQualified"',
   'sendMetaServiceAreaEvent',
 ]) assert.ok(metaSource.includes(marker), `Meta CAPI V2 missing marker: ${marker}`);
@@ -109,4 +109,4 @@ for (const marker of [
   'meta_capi_client_ip_from_netlify_context: true',
 ]) assert.ok(health.includes(marker), `Health endpoint missing Meta Signal V2 marker: ${marker}`);
 
-console.log('Meta Signal Quality V2: PASS · enhanced matching · trusted IP · fbclid fallback · early ServiceAreaQualified Pixel/CAPI signal');
+console.log('Meta Signal Quality V2: PASS · enhanced matching · trusted IP · validated fbp/fbc + fbclid fallback · early ServiceAreaQualified Pixel/CAPI signal');
