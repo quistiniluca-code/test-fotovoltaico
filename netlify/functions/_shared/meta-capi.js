@@ -71,6 +71,13 @@ function eligibleStatus(base, qualified) {
   return qualified ? `${base}_qualified` : base;
 }
 
+function eligibleFailureStatus(status) {
+  if (status === "failed_network") return "eligible_failed_network";
+  if (status === "not_configured") return "eligible_skipped_not_configured";
+  if (String(status || "").startsWith("failed_http_")) return `eligible_${status}`;
+  return `eligible_${String(status || "failed_unknown")}`;
+}
+
 function metaEvent({ request, body, leadId, eventName, eventId, clientIp = "" }) {
   const event = {
     event_name: eventName,
@@ -149,10 +156,9 @@ export async function sendMetaLeadEvent({ request, body, leadId, clientIp = "" }
     events.push(metaEvent({ request, body, leadId, eventName: "QualifiedLead", eventId: `${leadId}:qualified`, clientIp }));
   }
   const result = await postMetaEvents(events);
+  const baseStatus = result.ok ? "sent" : eligibleFailureStatus(result.status);
   return {
-    status: result.ok
-      ? eligibleStatus("sent", qualified)
-      : eligibleStatus(result.status === "not_configured" ? "eligible_skipped_not_configured" : `eligible_${result.status}`, qualified),
+    status: eligibleStatus(baseStatus, qualified),
     detail: result.detail,
     service_area: serviceArea,
     meta_lead_eligible: true,
@@ -188,7 +194,7 @@ export async function sendMetaServiceAreaEvent({ request, body, leadId, clientIp
   });
   const result = await postMetaEvents([event]);
   return {
-    status: result.ok ? "sent" : result.status === "not_configured" ? "eligible_skipped_not_configured" : `eligible_${result.status}`,
+    status: result.ok ? "sent" : eligibleFailureStatus(result.status),
     detail: result.detail,
     service_area: serviceArea,
     event_id: eventId,
@@ -204,5 +210,6 @@ export const __test = {
   normalizedUserData,
   sourceUrl,
   eligibleStatus,
+  eligibleFailureStatus,
   metaEvent,
 };
