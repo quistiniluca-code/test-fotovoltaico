@@ -211,7 +211,7 @@ export default async (request) => {
         rate_from_start: percentage(count, sessionCount),
         rate_from_previous: percentage(count, previous),
       };
-      previous = count || previous;
+      previous = count;
       return item;
     });
 
