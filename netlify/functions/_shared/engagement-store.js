@@ -97,6 +97,12 @@ export async function persistEngagement({
   };
 }
 
+export async function engagementDatabaseStatus() {
+  const db = database();
+  const [row] = await db.sql`SELECT to_regclass('public.econ_fv_engagements')::text AS engagements_table`;
+  return { ready: Boolean(row?.engagements_table), engagements_table: Boolean(row?.engagements_table) };
+}
+
 export async function listEngagements({ limit = 5000 } = {}) {
   const store = dataStore(ENGAGEMENT_STORE, { consistency: "strong" });
   const { blobs } = await store.list({ prefix: "engagement/" });
