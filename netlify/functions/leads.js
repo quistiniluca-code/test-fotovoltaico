@@ -149,10 +149,10 @@ async function persistLeadBlob(payload, leadId) {
   return { key, created_at: createdAt, updated_at: now, created: !previous };
 }
 
-async function leadResponseWithMeta(request, body, leadId, payload) {
+async function leadResponseWithMeta(request, body, leadId, payload, clientIp = "") {
   const meta = payload.created === false
     ? { status: "skipped_existing_lead" }
-    : await sendMetaLeadEvent({ request, body, leadId });
+    : await sendMetaLeadEvent({ request, body, leadId, clientIp });
   return json({ ...payload, meta_capi: meta.status }, payload.created === false ? 200 : 201);
 }
 
@@ -167,7 +167,7 @@ function linkedBodyFor(canonicalBody, databaseStored, requestId) {
   };
 }
 
-export default async (request) => {
+export default async (request, context) => {
   if (request.method !== "POST") return json({ detail: "method_not_allowed" }, 405);
   if (!sameOriginRequest(request)) return json({ detail: "origin_not_allowed" }, 403);
 
@@ -186,6 +186,7 @@ export default async (request) => {
     const sessionId = safeSessionId(body.session_id);
     const requestId = safeRequestId(body.request_id) || "";
     const leadId = leadIdForSession(sessionId);
+    const clientIp = context?.ip || "";
     const attachment = await verifiedBillAttachment(body, leadId);
     const processing = attachment?.processing
       ? normalizeBillProcessing(attachment.processing)
@@ -202,7 +203,7 @@ export default async (request) => {
       await sendWebhook(canonicalBody, leadId);
       return leadResponseWithMeta(request, canonicalBody, leadId, {
         ok: true, lead_id: leadId, adapter: "crm_webhook", persisted: true, created: true,
-      });
+      }, clientIp);
     }
 
     if (mode === "blobs") {
@@ -217,7 +218,7 @@ export default async (request) => {
         request_replayed: false,
         stored_at: stored.updated_at,
         attachment_linked: Boolean(attachment),
-      });
+      }, clientIp);
     }
 
     if (mode === "dual") {
@@ -239,7 +240,7 @@ export default async (request) => {
           document_id: databaseStored.document_id,
           attachment_linked: databaseStored.attachment_linked,
           stored_at: databaseStored.updated_at || blobStored.updated_at,
-        });
+        }, clientIp);
       }
       return leadResponseWithMeta(request, linkedBody, leadId, {
         ok: true,
@@ -255,7 +256,7 @@ export default async (request) => {
         document_id: databaseStored.document_id,
         attachment_linked: databaseStored.attachment_linked,
         stored_at: databaseStored.updated_at || blobStored.updated_at,
-      });
+      }, clientIp);
     }
 
     if (mode === "database") {
@@ -273,7 +274,7 @@ export default async (request) => {
         document_id: databaseStored.document_id,
         attachment_linked: databaseStored.attachment_linked,
         stored_at: databaseStored.updated_at,
-      });
+      }, clientIp);
     }
 
     return json({ detail: "crm_disabled" }, 503);
