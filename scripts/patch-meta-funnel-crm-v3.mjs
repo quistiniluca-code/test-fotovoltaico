@@ -50,7 +50,7 @@ async function signalMetaJourney(eventName,options={}){
 function maybeSignalPageView(){if(window.ECONTrackingConsent?.marketingAllowed?.()===true)setTimeout(()=>void signalMetaJourney('PageView'),250)}
 window.addEventListener('econ:marketing-ready',maybeSignalPageView);
 setTimeout(maybeSignalPageView,650);
-document.addEventListener('click',event=>{const link=event.target?.closest?.('#whatsappFinal');if(!link)return;const eventId=crypto.randomUUID();track('whatsapp_intent',{destination:'whatsapp',service_area_status:state.a.service_area_status||null});void signalMetaJourney('WhatsAppIntent',{eventId,detail:{destination:'whatsapp',lead_present:Boolean(state.a.lead_id)}})},true);
+document.addEventListener('click',event=>{const link=event.target?.closest?.('#whatsappFinal');if(!link)return;state.a.whatsapp_intent=true;const eventId=crypto.randomUUID();track('whatsapp_intent',{destination:'whatsapp',service_area_status:state.a.service_area_status||null});void signalMetaJourney('WhatsAppIntent',{eventId,detail:{destination:'whatsapp',lead_present:Boolean(state.a.lead_id)}})},true);
 window.addEventListener('pagehide',()=>track('session_exit',{last_step:state.step,lead_completed:Boolean(state.a.lead_id),whatsapp_intent:Boolean(state.a.whatsapp_intent)}),{once:true});
 `;
 html = html.replace(signalMarker, journeyHelper + '\n' + signalMarker);
@@ -121,6 +121,7 @@ for (const required of [
   "fetch('/api/meta/journey'",
   "track('test_started')",
   "track('whatsapp_intent'",
+  'state.a.whatsapp_intent=true',
   "track('session_exit'",
   "track('page_view',{screen:0})",
   'state.a.contact={first_name:first,last_name:last,mobile,email}',
