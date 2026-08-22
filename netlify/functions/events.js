@@ -5,9 +5,14 @@ import { dataStore } from "./_shared/blob-store.js";
 import { insertEventToDatabase } from "./_shared/database.js";
 
 const ALLOWED_EVENTS = new Set([
-  "screen_view", "bill_upload_started", "bill_parse_success", "bill_parse_failed",
+  "page_view", "screen_view", "test_started", "session_exit",
+  "bill_upload_started", "bill_parse_success", "bill_parse_failed",
   "bill_archive_success", "bill_archive_failed", "bill_data_confirmed",
-  "address_selected", "address_confirmed", "lead_form_opened", "lead_completed", "lead_save_failed"
+  "address_selected", "address_confirmed",
+  "service_area_checked", "service_area_qualified", "service_area_out_of_area", "service_area_signal_failed",
+  "lead_form_opened", "lead_completed", "lead_save_failed", "lead_quality_classified", "qualified_lead", "lead_out_of_area",
+  "meta_journey_signal", "meta_journey_failed",
+  "whatsapp_intent", "whatsapp_intent_crm_saved"
 ]);
 
 export default async (request) => {
@@ -24,7 +29,7 @@ export default async (request) => {
     const eventId = crypto.randomUUID();
     const clientEventId = suppliedClientEventId || eventId;
     const payload = {
-      schema: "econ.event.v2",
+      schema: "econ.event.v3",
       event_id: eventId,
       client_event_id: clientEventId,
       session_id: sessionId,
@@ -57,3 +62,4 @@ export default async (request) => {
 };
 
 export const config = { path: "/api/events" };
+export const __test = { ALLOWED_EVENTS };
