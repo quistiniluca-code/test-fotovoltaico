@@ -2,6 +2,12 @@ import { createHash } from "node:crypto";
 import { env } from "./env.js";
 import { classifyLeadQuality, classifyServiceArea } from "./service-area.js";
 
+const JOURNEY_EVENTS = Object.freeze({
+  PageView: { area_gate: false, semantics: "micro" },
+  TestStarted: { area_gate: false, semantics: "micro" },
+  WhatsAppIntent: { area_gate: true, semantics: "intent" },
+});
+
 function sha256(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
@@ -13,6 +19,13 @@ function normalizedText(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
     .trim();
+}
+
+function normalizedPhone(value) {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.length >= 9 && digits.length <= 11 && (digits.startsWith("3") || digits.startsWith("0"))) digits = `39${digits}`;
+  return digits.slice(0, 15);
 }
 
 function cookieMap(request) {
@@ -40,9 +53,15 @@ function fbcFromAttribution(body) {
   return `fb.1.${timestampMs}.${fbclid}`;
 }
 
+function validBrowserId(value, prefix) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.length > 500) return undefined;
+  return raw.startsWith(prefix) ? raw : undefined;
+}
+
 function normalizedUserData(request, body, leadId, explicitIp = "") {
   const email = String(body?.contact?.email || "").trim().toLowerCase();
-  const phone = String(body?.contact?.mobile || "").replace(/\D/g, "");
+  const phone = normalizedPhone(body?.contact?.mobile);
   const firstName = normalizedText(body?.contact?.first_name);
   const lastName = normalizedText(body?.contact?.last_name);
   const cookies = cookieMap(request);
@@ -54,10 +73,22 @@ function normalizedUserData(request, body, leadId, explicitIp = "") {
     external_id: leadId ? [sha256(leadId)] : undefined,
     client_ip_address: clientIpFromRequest(request, explicitIp),
     client_user_agent: request.headers.get("user-agent") || undefined,
-    fbp: cookies._fbp || undefined,
-    fbc: cookies._fbc || fbcFromAttribution(body),
+    fbp: validBrowserId(cookies._fbp, "fb.1.") || undefined,
+    fbc: validBrowserId(cookies._fbc, "fb.1.") || fbcFromAttribution(body),
   };
   return Object.fromEntries(Object.entries(userData).filter(([, value]) => value !== undefined));
+}
+
+function userDataQuality(userData = {}) {
+  const preferred = ["em", "ph", "fn", "ln", "external_id", "client_ip_address", "client_user_agent", "fbp", "fbc"];
+  const present = preferred.filter(key => userData[key] !== undefined);
+  return {
+    present,
+    count: present.length,
+    strong_contact_match: Boolean(userData.em || userData.ph),
+    browser_match: Boolean(userData.fbp || userData.fbc),
+    network_match: Boolean(userData.client_ip_address && userData.client_user_agent),
+  };
 }
 
 function sourceUrl(request) {
@@ -78,14 +109,16 @@ function eligibleFailureStatus(status) {
   return `eligible_${String(status || "failed_unknown")}`;
 }
 
-function metaEvent({ request, body, leadId, eventName, eventId, clientIp = "" }) {
+function metaEvent({ request, body, leadId, eventName, eventId, clientIp = "", customData = undefined }) {
+  const userData = normalizedUserData(request, body, leadId, clientIp);
   const event = {
     event_name: eventName,
     event_time: Math.floor(Date.now() / 1000),
     event_id: eventId,
     action_source: "website",
     event_source_url: sourceUrl(request),
-    user_data: normalizedUserData(request, body, leadId, clientIp),
+    user_data: userData,
+    custom_data: customData,
   };
   return Object.fromEntries(Object.entries(event).filter(([, value]) => value !== undefined));
 }
@@ -151,9 +184,26 @@ export async function sendMetaLeadEvent({ request, body, leadId, clientIp = "" }
     };
   }
 
-  const events = [metaEvent({ request, body, leadId, eventName: "Lead", eventId: leadId, clientIp })];
+  const leadEvent = metaEvent({
+    request,
+    body,
+    leadId,
+    eventName: "Lead",
+    eventId: leadId,
+    clientIp,
+    customData: { event_semantics: "conversion", service_area_status: serviceArea.status },
+  });
+  const events = [leadEvent];
   if (qualified) {
-    events.push(metaEvent({ request, body, leadId, eventName: "QualifiedLead", eventId: `${leadId}:qualified`, clientIp }));
+    events.push(metaEvent({
+      request,
+      body,
+      leadId,
+      eventName: "QualifiedLead",
+      eventId: `${leadId}:qualified`,
+      clientIp,
+      customData: { event_semantics: "quality_conversion", service_area_status: serviceArea.status },
+    }));
   }
   const result = await postMetaEvents(events);
   const baseStatus = result.ok ? "sent" : eligibleFailureStatus(result.status);
@@ -163,6 +213,7 @@ export async function sendMetaLeadEvent({ request, body, leadId, clientIp = "" }
     service_area: serviceArea,
     meta_lead_eligible: true,
     qualified_lead_eligible: qualified,
+    match_quality: userDataQuality(leadEvent.user_data),
   };
 }
 
@@ -191,6 +242,7 @@ export async function sendMetaServiceAreaEvent({ request, body, leadId, clientIp
     eventName: "ServiceAreaQualified",
     eventId,
     clientIp,
+    customData: { event_semantics: "qualification", service_area_status: serviceArea.status },
   });
   const result = await postMetaEvents([event]);
   return {
@@ -198,16 +250,75 @@ export async function sendMetaServiceAreaEvent({ request, body, leadId, clientIp
     detail: result.detail,
     service_area: serviceArea,
     event_id: eventId,
+    match_quality: userDataQuality(event.user_data),
+  };
+}
+
+export async function sendMetaJourneyEvent({ request, body, leadId, eventName, eventId, clientIp = "" }) {
+  const config = JOURNEY_EVENTS[eventName];
+  if (!config) return { status: "skipped_invalid_event", meta_eligible: false };
+  const serviceArea = classifyServiceArea(body?.property || {});
+
+  if (config.area_gate && serviceArea.status !== "IN_AREA") {
+    return {
+      status: serviceArea.status === "OUT_OF_AREA" ? "skipped_out_of_area" : "skipped_unknown_area",
+      meta_eligible: false,
+      service_area: serviceArea,
+      event_id: eventId,
+    };
+  }
+  if (body?.tracking_consent?.marketing !== true) {
+    return {
+      status: "eligible_skipped_no_marketing_consent",
+      meta_eligible: true,
+      service_area: serviceArea,
+      event_id: eventId,
+    };
+  }
+  if (!metaEndpoint()) {
+    return {
+      status: "eligible_skipped_not_configured",
+      meta_eligible: true,
+      service_area: serviceArea,
+      event_id: eventId,
+    };
+  }
+
+  const event = metaEvent({
+    request,
+    body,
+    leadId,
+    eventName,
+    eventId,
+    clientIp,
+    customData: {
+      event_semantics: config.semantics,
+      service_area_status: serviceArea.status,
+      acquisition_platform: body?.detail?.acquisition_platform || undefined,
+    },
+  });
+  const result = await postMetaEvents([event]);
+  return {
+    status: result.ok ? "sent" : eligibleFailureStatus(result.status),
+    meta_eligible: true,
+    detail: result.detail,
+    service_area: serviceArea,
+    event_id: eventId,
+    match_quality: userDataQuality(event.user_data),
   };
 }
 
 export const __test = {
+  JOURNEY_EVENTS,
   sha256,
   normalizedText,
+  normalizedPhone,
   cookieMap,
   clientIpFromRequest,
   fbcFromAttribution,
+  validBrowserId,
   normalizedUserData,
+  userDataQuality,
   sourceUrl,
   eligibleStatus,
   eligibleFailureStatus,

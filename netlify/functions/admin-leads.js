@@ -4,6 +4,8 @@ import { json } from "./_shared/http.js";
 import { dataStore } from "./_shared/blob-store.js";
 import { normalizeBillProcessing } from "./_shared/bill-processing.js";
 import { classifyLeadQuality } from "./_shared/service-area.js";
+import { attributionPlatform, commercialQualityScore } from "./_shared/commercial-quality.js";
+import { listEngagements } from "./_shared/engagement-store.js";
 
 const LEAD_STORE = "econ-fv-leads-prelive";
 const ADMIN_TOKEN_SHA256_FALLBACK = "9485d055e7452983a9332b250fa1637bea7312ce5f0d1fbdde3e3fb9123ccde4";
@@ -53,13 +55,19 @@ function normalizeRecord(key, value, metadata) {
   };
 }
 
-function summary(record) {
+function summary(record, engagementIndex = {}) {
   const lead = record?.lead || {};
   const attachment = lead?.bill_attachment || null;
   const processing = normalizeBillProcessing(attachment?.processing ?? lead?.bill_processing);
   const linkage = lead?.data_linkage || {};
   const quality = classifyLeadQuality(lead);
   const area = quality.service_area;
+  const hasWhatsappIntent = Boolean(
+    engagementIndex?.leadIds?.has(record?.lead_id) ||
+    engagementIndex?.sessionIds?.has(lead?.session_id)
+  );
+  const commercialQuality = commercialQualityScore(lead, { has_whatsapp_intent: hasWhatsappIntent });
+  const attribution = attributionPlatform(lead?.attribution || {});
   return {
     lead_id: record?.lead_id || null,
     contact_id: linkage.contact_id || null,
@@ -81,6 +89,17 @@ function summary(record) {
     service_area_province_code: area.province_code,
     meta_lead_eligible: quality.meta_lead_eligible,
     qualified_lead_eligible: quality.qualified_lead_eligible,
+    commercial_quality_version: commercialQuality.version,
+    commercial_quality_score: commercialQuality.score,
+    commercial_quality_grade: commercialQuality.grade,
+    decision_horizon: commercialQuality.decision_horizon,
+    whatsapp_intent: hasWhatsappIntent,
+    attribution_platform: attribution.platform,
+    attribution_paid: attribution.paid,
+    utm_source: lead?.attribution?.utm_source || null,
+    utm_medium: lead?.attribution?.utm_medium || null,
+    utm_campaign: lead?.attribution?.utm_campaign || null,
+    utm_content: lead?.attribution?.utm_content || null,
     score: Number(lead?.test?.score) || 0,
     supplier: lead?.bill_summary?.supplier || null,
     annual_kwh: lead?.bill_summary?.annual_kwh ?? null,
@@ -113,7 +132,9 @@ function toCsv(rows) {
   const columns = [
     "lead_id", "contact_id", "request_id", "document_id", "created_at", "updated_at", "first_name", "last_name", "mobile", "email",
     "commercial_fv_request", "address", "property_city", "property_province", "service_area_status", "service_area_tier", "service_area_region", "service_area_province_code",
-    "meta_lead_eligible", "qualified_lead_eligible", "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
+    "meta_lead_eligible", "qualified_lead_eligible", "commercial_quality_version", "commercial_quality_score", "commercial_quality_grade", "decision_horizon", "whatsapp_intent",
+    "attribution_platform", "attribution_paid", "utm_source", "utm_medium", "utm_campaign", "utm_content",
+    "score", "supplier", "annual_kwh", "annual_spend", "privacy_version",
     "bill_file_stored", "bill_attachment_id", "bill_filename", "bill_content_type", "bill_size_bytes", "bill_sha256", "bill_uploaded_at",
     "bill_parse_status", "bill_parser_mode", "bill_parser_version", "bill_engine", "bill_engine_version",
     "bill_data_mode", "bill_data_confirmed", "bill_parse_error_code",
@@ -148,9 +169,21 @@ export default async (request) => {
       }
     }
 
+    const engagementIndex = { leadIds: new Set(), sessionIds: new Set() };
+    try {
+      const engagements = await listEngagements({ limit: 5000 });
+      for (const engagement of engagements) {
+        if (engagement?.type !== "whatsapp_intent") continue;
+        if (engagement?.lead_id) engagementIndex.leadIds.add(engagement.lead_id);
+        if (engagement?.session_id) engagementIndex.sessionIds.add(engagement.session_id);
+      }
+    } catch {
+      // CRM export remains available even if the auxiliary engagement store is temporarily unavailable.
+    }
+
     records.sort((a, b) => String(b?.server?.updated_at || b?.server?.created_at || "").localeCompare(String(a?.server?.updated_at || a?.server?.created_at || "")));
     const page = records.slice(offset, offset + limit);
-    const summaries = page.map(summary);
+    const summaries = page.map(record => summary(record, engagementIndex));
 
     if (format === "csv") {
       return new Response(toCsv(summaries), {
@@ -172,6 +205,7 @@ export default async (request) => {
       limit,
       returned: page.length,
       auth_mode: auth.mode,
+      commercial_quality_version: "econ.commercial-quality.v1",
       leads: full ? page : summaries,
     });
   } catch (error) {
