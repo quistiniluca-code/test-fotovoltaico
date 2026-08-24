@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 
 const file = 'public/index.html';
+const adminFile = 'netlify/functions/admin-funnel.js';
+const dashboardFile = 'public/admin/funnel.html';
 let html = fs.readFileSync(file, 'utf8');
+let admin = fs.readFileSync(adminFile, 'utf8');
+let dashboard = fs.readFileSync(dashboardFile, 'utf8');
 const marker = 'BERGAMO GEO QUALIFIER V4 · early Comune/Provincia + clean funnel metrics';
 
 if (html.includes(marker)) throw new Error('Bergamo Geo Qualifier V4 already applied');
@@ -76,6 +80,34 @@ const whatsappNew = "state.a.whatsapp_intent=true;state.a.whatsapp_click_count=(
 if (!html.includes(whatsappOld)) throw new Error('WhatsApp intent marker not found');
 html = html.replace(whatsappOld, whatsappNew);
 
+const waSetsOld = 'const whatsappSessionIds = new Set(whatsapp.map(row => row?.session_id).filter(Boolean));';
+const waSetsNew = `${waSetsOld}\n    const whatsappInAreaSessionIds = new Set(whatsapp.filter(row => row?.service_area_status === "IN_AREA").map(row => row?.session_id).filter(Boolean));`;
+if (!admin.includes(waSetsOld)) throw new Error('Admin WhatsApp set marker not found');
+admin = admin.replace(waSetsOld, waSetsNew);
+
+const metricsMarker = '    if (format === "csv") {';
+if (!admin.includes(metricsMarker)) throw new Error('Admin format marker not found');
+const metrics = `    const propertyCheckSessionIds = new Set(events.filter(event => event?.event === "service_area_checked").map(event => event?.session_id).filter(Boolean));\n    const inAreaCheckSessionIds = new Set(events.filter(event => event?.event === "service_area_qualified").map(event => event?.session_id).filter(Boolean));\n    const propertyAreaChecks = propertyCheckSessionIds.size;\n    const propertyAreaInAreaRate = percentage(inAreaCheckSessionIds.size, propertyAreaChecks);\n    const serviceAreaPerformanceSignalCandidate = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 40;\n    const serviceAreaPerformanceSignalStrong = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 50;\n\n`;
+admin = admin.replace(metricsMarker, metrics + metricsMarker);
+
+const kpiOld = '        whatsapp_intents: engagementRows.length,\n        whatsapp_in_area: engagementRows.filter(row => row.service_area_status === "IN_AREA").length,';
+const kpiNew = '        whatsapp_clicks: engagementRows.length,\n        whatsapp_intents: whatsappSessionIds.size,\n        whatsapp_unique_intents: whatsappSessionIds.size,\n        whatsapp_unique_in_area: whatsappInAreaSessionIds.size,\n        property_area_checks: propertyAreaChecks,\n        property_area_in_area_rate: propertyAreaInAreaRate,\n        service_area_performance_signal_candidate: serviceAreaPerformanceSignalCandidate,\n        service_area_performance_signal_strong: serviceAreaPerformanceSignalStrong,';
+if (!admin.includes(kpiOld)) throw new Error('Admin KPI marker not found');
+admin = admin.replace(kpiOld, kpiNew);
+
+const breakdownMarker = '      platform_breakdown:';
+if (!admin.includes(breakdownMarker)) throw new Error('Admin response breakdown marker not found');
+admin = admin.replace(breakdownMarker, `      recommendations: {\n        service_area_performance_signal: serviceAreaPerformanceSignalStrong ? "strong_candidate" : serviceAreaPerformanceSignalCandidate ? "candidate" : "keep_diagnostic",\n        minimum_property_checks: 30,\n        candidate_in_area_rate_pct: 40,\n        strong_in_area_rate_pct: 50,\n      },\n      ${breakdownMarker.trim()}`);
+
+const cardOld = "['WhatsApp Intent',d.kpis?.whatsapp_intents||0]";
+const cardNew = "['WhatsApp Intent unici',d.kpis?.whatsapp_unique_intents??d.kpis?.whatsapp_intents??0]";
+if (!dashboard.includes(cardOld)) throw new Error('Dashboard WhatsApp card marker not found');
+dashboard = dashboard.replace(cardOld, cardNew);
+const qualityOld = "<p class=\"muted\">A ${q.A||0} · B ${q.B||0} · C ${q.C||0} · D ${q.D||0} · Fuori area ${q.OUT_OF_AREA||0}</p>";
+const qualityNew = "<p class=\"muted\">A ${q.A||0} · B ${q.B||0} · C ${q.C||0} · D ${q.D||0} · Fuori area ${q.OUT_OF_AREA||0}</p><p class=\"muted\"><b>Geo check:</b> ${d.kpis?.property_area_checks||0} · IN_AREA ${d.kpis?.property_area_in_area_rate||0}% · Segnale Meta: ${esc(d.recommendations?.service_area_performance_signal||'keep_diagnostic')}</p>";
+if (!dashboard.includes(qualityOld)) throw new Error('Dashboard quality marker not found');
+dashboard = dashboard.replace(qualityOld, qualityNew);
+
 for (const required of [
   marker,
   'function collectEarlyPropertyArea()',
@@ -87,6 +119,12 @@ for (const required of [
   'acquisition_cluster=acquisitionCluster(provinceNormalized)',
   'state.a.whatsapp_click_count=(state.a.whatsapp_click_count||0)+1',
 ]) if (!html.includes(required)) throw new Error(`Geo Qualifier V4 marker missing: ${required}`);
+for (const required of ['whatsapp_unique_intents', 'property_area_in_area_rate', 'service_area_performance_signal_candidate', 'strong_candidate']) {
+  if (!admin.includes(required)) throw new Error(`Admin V4 marker missing: ${required}`);
+}
+if (!dashboard.includes('WhatsApp Intent unici') || !dashboard.includes('Geo check:')) throw new Error('Dashboard V4 markers missing');
 
 fs.writeFileSync(file, html);
-console.log('Bergamo Geo Qualifier V4: PASS · early property geo · immediate service-area signal · clean bill/WhatsApp telemetry');
+fs.writeFileSync(adminFile, admin);
+fs.writeFileSync(dashboardFile, dashboard);
+console.log('Bergamo Geo Qualifier V4: PASS · early property geo · immediate service-area signal · clean bill/WhatsApp metrics · performance-signal gate');
