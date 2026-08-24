@@ -49,8 +49,7 @@ function collectEarlyPropertyArea(){return new Promise(resolve=>{
     if(c.length<2||!/^[A-Z]{2}$/.test(p)){status.className='status error geo-gate-status';status.textContent='Inserisci Comune e sigla Provincia.';(c.length<2?city:province).focus();return}
     state.a.property_city=c;state.a.property_province=p;state.a.acquisition_cluster=acquisitionCluster(p);track('property_area_checked',{city:c,province:p,acquisition_cluster:state.a.acquisition_cluster,check_stage:'early'});
     if(state.a.acquisition_cluster==='BERGAMO')track('priority_area_bergamo',{city:c,province:p});
-    const result=await signalServiceArea({city:c,province:p});
-    if(result?.status)state.a.service_area_status=result.status;
+    await signalServiceArea({city:c,province:p});
     layer.remove();resolve(true);
   };
   setTimeout(()=>city.focus(),30);
@@ -87,7 +86,7 @@ admin = admin.replace(waSetsOld, waSetsNew);
 
 const metricsMarker = '    if (format === "csv") {';
 if (!admin.includes(metricsMarker)) throw new Error('Admin format marker not found');
-const metrics = `    const propertyCheckSessionIds = new Set(events.filter(event => event?.event === "service_area_checked").map(event => event?.session_id).filter(Boolean));\n    const inAreaCheckSessionIds = new Set(events.filter(event => event?.event === "service_area_qualified").map(event => event?.session_id).filter(Boolean));\n    const propertyAreaChecks = propertyCheckSessionIds.size;\n    const propertyAreaInAreaRate = percentage(inAreaCheckSessionIds.size, propertyAreaChecks);\n    const serviceAreaPerformanceSignalCandidate = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 40;\n    const serviceAreaPerformanceSignalStrong = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 50;\n\n`;
+const metrics = `    const propertyCheckSessionIds = new Set(events.filter(event => event?.event === "property_area_checked").map(event => event?.session_id).filter(Boolean));\n    const qualifiedSessionIds = new Set(events.filter(event => event?.event === "service_area_qualified").map(event => event?.session_id).filter(Boolean));\n    const inAreaPropertyCheckSessionIds = new Set([...propertyCheckSessionIds].filter(sessionId => qualifiedSessionIds.has(sessionId)));\n    const propertyAreaChecks = propertyCheckSessionIds.size;\n    const propertyAreaInAreaRate = percentage(inAreaPropertyCheckSessionIds.size, propertyAreaChecks);\n    const serviceAreaPerformanceSignalCandidate = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 40;\n    const serviceAreaPerformanceSignalStrong = propertyAreaChecks >= 30 && propertyAreaInAreaRate >= 50;\n\n`;
 admin = admin.replace(metricsMarker, metrics + metricsMarker);
 
 const kpiOld = '        whatsapp_intents: engagementRows.length,\n        whatsapp_in_area: engagementRows.filter(row => row.service_area_status === "IN_AREA").length,';
@@ -119,7 +118,7 @@ for (const required of [
   'acquisition_cluster=acquisitionCluster(provinceNormalized)',
   'state.a.whatsapp_click_count=(state.a.whatsapp_click_count||0)+1',
 ]) if (!html.includes(required)) throw new Error(`Geo Qualifier V4 marker missing: ${required}`);
-for (const required of ['whatsapp_unique_intents', 'property_area_in_area_rate', 'service_area_performance_signal_candidate', 'strong_candidate']) {
+for (const required of ['whatsapp_unique_intents', 'property_area_in_area_rate', 'service_area_performance_signal_candidate', 'strong_candidate', 'event?.event === "property_area_checked"', 'inAreaPropertyCheckSessionIds']) {
   if (!admin.includes(required)) throw new Error(`Admin V4 marker missing: ${required}`);
 }
 if (!dashboard.includes('WhatsApp Intent unici') || !dashboard.includes('Geo check:')) throw new Error('Dashboard V4 markers missing');
