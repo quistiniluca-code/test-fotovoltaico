@@ -71,12 +71,10 @@ const addressNew = "state.a.address_source=source;const earlyProvince=state.a.pr
 if (!html.includes(addressOld)) throw new Error('Final address confirmation marker not found');
 html = html.replace(addressOld, addressNew);
 
-const whatsappOld = "state.a.whatsapp_intent=true;const eventId=crypto.randomUUID();track('whatsapp_intent'";
-const whatsappNew = "state.a.whatsapp_intent=true;state.a.whatsapp_click_count=(state.a.whatsapp_click_count||0)+1;const eventId=crypto.randomUUID();track('whatsapp_intent',{click_index:state.a.whatsapp_click_count,...";
+const whatsappOld = "state.a.whatsapp_intent=true;const eventId=crypto.randomUUID();track('whatsapp_intent',{destination:'whatsapp',service_area_status:state.a.service_area_status||null});";
+const whatsappNew = "state.a.whatsapp_intent=true;state.a.whatsapp_click_count=(state.a.whatsapp_click_count||0)+1;const eventId=crypto.randomUUID();track('whatsapp_intent',{destination:'whatsapp',service_area_status:state.a.service_area_status||null,click_index:state.a.whatsapp_click_count});";
 if (!html.includes(whatsappOld)) throw new Error('WhatsApp intent marker not found');
 html = html.replace(whatsappOld, whatsappNew);
-// Repair the object opening introduced above while preserving original fields.
-html = html.replace("track('whatsapp_intent',{click_index:state.a.whatsapp_click_count,...,{destination:'whatsapp'", "track('whatsapp_intent',{click_index:state.a.whatsapp_click_count,destination:'whatsapp'");
 
 for (const required of [
   marker,
