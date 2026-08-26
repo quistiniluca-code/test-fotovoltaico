@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const html = fs.readFileSync('public/index.html', 'utf8');
 const admin = fs.readFileSync('netlify/functions/admin-funnel.js', 'utf8');
 const dashboard = fs.readFileSync('public/admin/funnel.html', 'utf8');
+const eventsFunction = fs.readFileSync('netlify/functions/events.js', 'utf8');
 
 for (const marker of [
   'BERGAMO GEO QUALIFIER V4',
@@ -34,10 +35,14 @@ for (const marker of [
   'service_area_performance_signal: serviceAreaPerformanceSignalStrong ? "strong_candidate"',
 ]) assert.ok(admin.includes(marker), `Admin funnel missing V4 marker: ${marker}`);
 
+for (const eventName of ['property_area_checked', 'priority_area_bergamo', 'property_area_corrected']) {
+  assert.ok(eventsFunction.includes(`"${eventName}"`), `Events endpoint must accept ${eventName}`);
+}
+
 assert.ok(dashboard.includes('WhatsApp Intent unici'), 'Dashboard must show unique WhatsApp intents');
 assert.ok(dashboard.includes('Geo check:'), 'Dashboard must show property geo-check rate and Meta signal recommendation');
 
 const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]).filter(Boolean);
 for (const source of inlineScripts) new Function(source);
 
-console.log('Bergamo Geo Qualifier V4: PASS · early Comune/Provincia · immediate service area · clean bill and unique WhatsApp KPIs');
+console.log('Bergamo Geo Qualifier V4: PASS · early Comune/Provincia · immediate service area · clean bill and unique WhatsApp KPIs · geo telemetry allowlist');
