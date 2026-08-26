@@ -9,6 +9,7 @@ const ALLOWED_EVENTS = new Set([
   "bill_upload_started", "bill_parse_success", "bill_parse_failed",
   "bill_archive_success", "bill_archive_failed", "bill_data_confirmed",
   "address_selected", "address_confirmed",
+  "property_area_checked", "priority_area_bergamo", "property_area_corrected",
   "service_area_checked", "service_area_qualified", "service_area_out_of_area", "service_area_signal_failed",
   "lead_form_opened", "lead_completed", "lead_save_failed", "lead_quality_classified", "qualified_lead", "lead_out_of_area",
   "meta_journey_signal", "meta_journey_failed",
